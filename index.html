@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Match Oracle · Premier League &amp; World Cup Predictor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Bebas+Neue&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="pitch-bg" aria-hidden="true"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-badge">⚽</span>
+      <div>
+        <h1>Match Oracle</h1>
+        <p class="brand-sub">Premier League &amp; World Cup match predictor</p>
+      </div>
+    </div>
+    <button id="resetBtn" class="ghost-btn" hidden>↺ Start over</button>
+  </header>
+
+  <!-- Progress stepper -->
+  <nav class="stepper" id="stepper" aria-label="Progress">
+    <div class="step" data-step="1"><span class="dot">1</span><span class="lbl">Tournament</span></div>
+    <div class="step-line"></div>
+    <div class="step" data-step="2"><span class="dot">2</span><span class="lbl">Teams</span></div>
+    <div class="step-line"></div>
+    <div class="step" data-step="3"><span class="dot">3</span><span class="lbl">Venue</span></div>
+    <div class="step-line"></div>
+    <div class="step" data-step="4"><span class="dot">4</span><span class="lbl">Prediction</span></div>
+  </nav>
+
+  <main class="app-main">
+
+    <!-- STEP 1: choose tournament -->
+    <section class="screen active" id="screen-1">
+      <div class="screen-head">
+        <h2>Pick your tournament</h2>
+        <p>Which competition are we predicting today?</p>
+      </div>
+      <div class="tournament-grid" id="tournamentGrid"></div>
+    </section>
+
+    <!-- STEP 2: choose teams -->
+    <section class="screen" id="screen-2">
+      <div class="screen-head">
+        <h2>Choose the two sides</h2>
+        <p>Tap a team for each slot. Search to filter.</p>
+      </div>
+
+      <div class="matchup-slots">
+        <div class="slot" id="slotA">
+          <span class="slot-tag">Team A</span>
+          <div class="slot-empty">Select a team</div>
+        </div>
+        <div class="vs-chip">VS</div>
+        <div class="slot" id="slotB">
+          <span class="slot-tag">Team B</span>
+          <div class="slot-empty">Select a team</div>
+        </div>
+      </div>
+
+      <div class="team-picker">
+        <input type="text" id="teamSearch" class="search-input" placeholder="🔍 Search teams…" autocomplete="off" />
+        <div class="team-list" id="teamList"></div>
+      </div>
+
+      <div class="screen-actions">
+        <button class="ghost-btn" data-goto="1">← Back</button>
+        <button class="primary-btn" id="toVenue" disabled>Continue →</button>
+      </div>
+    </section>
+
+    <!-- STEP 3: venue -->
+    <section class="screen" id="screen-3">
+      <div class="screen-head">
+        <h2>Where's the match?</h2>
+        <p>Home advantage nudges the numbers.</p>
+      </div>
+      <div class="venue-grid" id="venueGrid"></div>
+      <div class="screen-actions">
+        <button class="ghost-btn" data-goto="2">← Back</button>
+        <button class="primary-btn" id="runPrediction">Predict result ⚡</button>
+      </div>
+    </section>
+
+    <!-- STEP 4: results -->
+    <section class="screen" id="screen-4">
+      <div id="resultContainer"></div>
+      <div class="screen-actions center">
+        <button class="ghost-btn" data-goto="2">↺ New matchup</button>
+        <button class="primary-btn" id="rematchBtn">Swap &amp; re-run ⇄</button>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <p>Ratings are illustrative approximations. Predictions blend an Elo-style model with a Poisson goals simulation — for fun, not for your betting slip.</p>
+  </footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/predictor.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
