@@ -6,10 +6,13 @@
 (() => {
   const state = {
     step: 1,
-    dataset: null,   // DATASETS entry
+    dataset: null,   // active dataset (live teams or bundled fallback)
     teamA: null,
     teamB: null,
     venue: "neutral",
+    source: "fallback", // "live" | "fallback"
+    updated: null,
+    reason: null,
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -53,16 +56,96 @@
       )
       .join("");
     $$("#tournamentGrid .tournament-card").forEach((card) =>
-      card.addEventListener("click", () => {
-        state.dataset = DATASETS[card.dataset.ds];
-        state.teamA = state.teamB = null;
-        renderSlots();
-        renderTeamList();
-        $("#teamSearch").value = "";
-        $("#toVenue").disabled = true;
-        goto(2);
-      })
+      card.addEventListener("click", () => selectTournament(card.dataset.ds))
     );
+  }
+
+  async function selectTournament(dsId) {
+    const base = DATASETS[dsId];
+    state.teamA = state.teamB = null;
+    $("#teamSearch").value = "";
+    $("#toVenue").disabled = true;
+
+    // Show the picker immediately with a loading state, then swap in the data.
+    state.dataset = { ...base };
+    goto(2);
+    renderSlots();
+    showLoadingBadge(base.label);
+    $("#teamList").innerHTML = loadingCards();
+
+    const result = await loadTeams(dsId, base);
+    state.dataset = { ...base, teams: result.teams };
+    state.source = result.source;
+    state.updated = result.updated || null;
+    state.reason = result.reason || null;
+
+    renderDataBadge();
+    renderTeamList();
+  }
+
+  /*
+   * Fetch live teams from the serverless function. Falls back to the bundled
+   * sample dataset if the endpoint is unreachable (e.g. opened as a file://,
+   * offline, or no API key configured on the server).
+   */
+  async function loadTeams(dsId, base) {
+    try {
+      const res = await fetch(`/api/teams?tournament=${encodeURIComponent(dsId)}`, {
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok) throw new Error("http_" + res.status);
+      const data = await res.json();
+      if (data.source === "live" && Array.isArray(data.teams) && data.teams.length) {
+        return { teams: data.teams, source: "live", updated: data.updated };
+      }
+      return { teams: base.teams, source: "fallback", reason: data.reason || "no_live_data" };
+    } catch (err) {
+      return { teams: base.teams, source: "fallback", reason: "unreachable" };
+    }
+  }
+
+  function loadingCards() {
+    return Array.from({ length: 8 })
+      .map(() => `<div class="team-chip skeleton"><div class="mini-crest sk"></div><div><div class="sk-line"></div><div class="sk-line short"></div></div></div>`)
+      .join("");
+  }
+
+  function showLoadingBadge(label) {
+    const badge = $("#dataBadge");
+    badge.hidden = false;
+    badge.className = "data-badge loading";
+    badge.innerHTML = `<span class="pulse"></span> Fetching live ${label} stats…`;
+  }
+
+  function renderDataBadge() {
+    const badge = $("#dataBadge");
+    badge.hidden = false;
+    if (state.source === "live") {
+      badge.className = "data-badge live";
+      badge.innerHTML = `<span class="dot-live"></span> LIVE · standings updated ${timeAgo(state.updated)}`;
+    } else {
+      badge.className = "data-badge sample";
+      badge.innerHTML = `⚠︎ Sample ratings (${friendlyReason(state.reason)}) — deploy with an API key for live data`;
+    }
+  }
+
+  function friendlyReason(reason) {
+    switch (reason) {
+      case "unreachable": return "no live endpoint";
+      case "no_api_key": return "no API key set";
+      case "no_live_data":
+      case "no_standings": return "no live standings yet";
+      default: return "live data unavailable";
+    }
+  }
+
+  function timeAgo(iso) {
+    if (!iso) return "just now";
+    const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.round(mins / 60);
+    return `${hrs} hr${hrs > 1 ? "s" : ""} ago`;
   }
 
   // ---- STEP 2: team picker --------------------------------------------
@@ -72,12 +155,15 @@
       const slot = $("#slot" + k);
       if (team) {
         slot.classList.add("filled");
+        const meta = team.live
+          ? `${team.live.record} · form ${team.live.form || "—"}`
+          : team.titles;
         slot.innerHTML = `
           <span class="slot-tag">Team ${k}</span>
           <div class="slot-team">
             ${crest(team)}
             <span class="team-name">${team.name}</span>
-            <span class="team-rating">Rating ${team.rating} · ${team.titles}</span>
+            <span class="team-rating">Rating ${team.rating} · ${meta}</span>
           </div>`;
       } else {
         slot.classList.remove("filled");
@@ -98,12 +184,15 @@
       .map((t) => {
         const isSel = state.teamA?.id === t.id || state.teamB?.id === t.id;
         const [c1, c2] = t.colors;
+        const sub = t.live
+          ? `Rating ${t.rating} · ${t.live.record}`
+          : `Rating ${t.rating}`;
         return `
         <div class="team-chip ${isSel ? "selected" : ""}" data-id="${t.id}">
           <div class="mini-crest" style="background:linear-gradient(135deg,${c1},${c2})">${t.short}</div>
           <div>
             <div class="chip-name">${t.name}</div>
-            <div class="chip-rating">Rating ${t.rating}</div>
+            <div class="chip-rating">${sub}</div>
           </div>
         </div>`;
       })
@@ -182,6 +271,7 @@
           <div class="result-team">
             ${crest(teamA, "big")}
             <span class="rt-name">${teamA.name}</span>
+            ${liveTag(teamA)}
           </div>
           <div class="result-score">
             ${predictedScore.a} – ${predictedScore.b}
@@ -190,8 +280,10 @@
           <div class="result-team">
             ${crest(teamB, "big")}
             <span class="rt-name">${teamB.name}</span>
+            ${liveTag(teamB)}
           </div>
         </div>
+        ${resultSourceNote()}
         <div class="confidence-pill ${confidence.level}">${confidence.text}</div>
 
         <div class="xg-row">
@@ -232,6 +324,18 @@
           <p>${narrative(r, pA, pD, pB)}</p>
         </div>
       </div>`;
+  }
+
+  function liveTag(team) {
+    if (!team.live) return "";
+    return `<span class="rt-live">${team.live.record}</span>`;
+  }
+
+  function resultSourceNote() {
+    if (state.source === "live") {
+      return `<div class="source-note live">⚡ Based on live ${state.dataset.label} stats · updated ${timeAgo(state.updated)}</div>`;
+    }
+    return `<div class="source-note sample">Based on sample ratings — deploy with an API key for live tournament data</div>`;
   }
 
   function factorRow(f) {

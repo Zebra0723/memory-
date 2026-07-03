@@ -1,0 +1,9 @@
+{
+  "name": "match-oracle",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Premier League & World Cup match predictor with live tournament stats",
+  "engines": {
+    "node": ">=18"
+  }
+}

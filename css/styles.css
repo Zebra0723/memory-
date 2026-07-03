@@ -153,6 +153,52 @@ body {
 .tournament-card p { color: var(--muted); font-size: 14px; }
 .tournament-card .t-count { margin-top: 16px; font-size: 12px; color: var(--accent); font-weight: 700; letter-spacing: .3px; }
 
+/* Data-source badge */
+.data-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-top: 14px; padding: 7px 14px; border-radius: 20px;
+  font-size: 12.5px; font-weight: 600; letter-spacing: .2px;
+}
+.data-badge.loading { background: var(--card-2); color: var(--muted); border: 1px solid var(--border); }
+.data-badge.live { background: rgba(52,211,153,0.12); color: var(--accent); border: 1px solid rgba(52,211,153,0.35); }
+.data-badge.sample { background: rgba(251,191,36,0.10); color: var(--gold); border: 1px solid rgba(251,191,36,0.28); }
+.dot-live {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(52,211,153,0.7); animation: livePulse 1.8s infinite;
+}
+@keyframes livePulse {
+  0% { box-shadow: 0 0 0 0 rgba(52,211,153,0.6); }
+  70% { box-shadow: 0 0 0 8px rgba(52,211,153,0); }
+  100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
+}
+.data-badge .pulse {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--muted); animation: livePulse 1.4s infinite;
+}
+
+/* Skeleton loaders */
+.team-chip.skeleton { pointer-events: none; }
+.skeleton .sk, .sk-line {
+  background: linear-gradient(90deg, var(--card-2) 25%, #24304a 50%, var(--card-2) 75%);
+  background-size: 200% 100%; animation: shimmer 1.3s infinite; border-radius: 6px;
+}
+.skeleton .mini-crest.sk { }
+.sk-line { height: 10px; width: 84px; margin-bottom: 6px; }
+.sk-line.short { width: 52px; margin-bottom: 0; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* Live tags on result teams + source note */
+.rt-live {
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  background: var(--card-2); border: 1px solid var(--border);
+  padding: 2px 8px; border-radius: 10px; letter-spacing: .3px;
+}
+.source-note {
+  margin-top: 14px; font-size: 12.5px; font-weight: 600;
+  display: inline-block; padding: 6px 14px; border-radius: 16px;
+}
+.source-note.live { color: var(--accent); background: rgba(52,211,153,0.10); }
+.source-note.sample { color: var(--gold); background: rgba(251,191,36,0.10); }
+
 /* Matchup slots */
 .matchup-slots {
   display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: center;
