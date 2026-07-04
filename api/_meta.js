@@ -67,6 +67,9 @@ const META = {
   "leeds united":      { short: "LEE", colors: ["#FFFFFF", "#1D428A"], pedigree: 66, titles: "3 top-flight titles", aliases: ["leeds"] },
   "burnley":           { short: "BUR", colors: ["#6C1D45", "#99D6EA"], pedigree: 58, titles: "2 top-flight titles", aliases: ["burnley fc"] },
   "sunderland":        { short: "SUN", colors: ["#EB172B", "#FFFFFF"], pedigree: 56, titles: "6 top-flight titles", aliases: ["sunderland afc"] },
+  "ipswich town":      { short: "IPS", colors: ["#3A64A3", "#FFFFFF"], pedigree: 50, titles: "1 top-flight title", aliases: ["ipswich"] },
+  "coventry city":     { short: "COV", colors: ["#78D0F1", "#FFFFFF"], pedigree: 48, titles: "FA Cup 1987", aliases: ["coventry"] },
+  "hull city":         { short: "HUL", colors: ["#F18A01", "#000000"], pedigree: 44, titles: "Est. 1904", aliases: ["hull"] },
 
   // ---- European club competitions (La Liga / Bundesliga / Serie A / Ligue 1 / etc.) ----
   "real madrid":        { short: "RMA", colors: ["#FEBE10", "#00529F"], pedigree: 99, titles: "15× UCL", aliases: ["real madrid cf"] },

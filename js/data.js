@@ -15,30 +15,30 @@
  *   titles   – headline honours (league titles for clubs, WC/continental for nations)
  */
 
-// Premier League — 2025-26 season line-up (manually refreshed; best-effort
-// ratings as of an early-2026 knowledge cutoff). This is only the offline
-// fallback: live football-data.org standings override it once the season loads.
+// Premier League — 2026-27 season line-up (20 clubs, as supplied). Ratings are
+// best-effort estimates; this is only the offline fallback — live
+// football-data.org standings override it once the season is loaded.
 const PREMIER_LEAGUE = [
-  { id: "liv", name: "Liverpool",           short: "LIV", colors: ["#C8102E", "#00B2A9"], rating: 90, attack: 90, defense: 85, form: 87, pedigree: 90, titles: "Champions 2024-25" },
-  { id: "mci", name: "Manchester City",     short: "MCI", colors: ["#6CABDD", "#1C2C5B"], rating: 90, attack: 92, defense: 86, form: 85, pedigree: 90, titles: "9 PL titles" },
+  { id: "liv", name: "Liverpool",           short: "LIV", colors: ["#C8102E", "#00B2A9"], rating: 89, attack: 89, defense: 85, form: 86, pedigree: 90, titles: "20 top-flight titles" },
+  { id: "mci", name: "Manchester City",     short: "MCI", colors: ["#6CABDD", "#1C2C5B"], rating: 89, attack: 91, defense: 85, form: 85, pedigree: 90, titles: "9 PL titles" },
   { id: "ars", name: "Arsenal",             short: "ARS", colors: ["#EF0107", "#FFFFFF"], rating: 89, attack: 88, defense: 87, form: 88, pedigree: 82, titles: "13 top-flight titles" },
   { id: "che", name: "Chelsea",             short: "CHE", colors: ["#034694", "#FFFFFF"], rating: 84, attack: 85, defense: 80, form: 83, pedigree: 84, titles: "6 top-flight titles" },
-  { id: "tot", name: "Tottenham Hotspur",   short: "TOT", colors: ["#132257", "#FFFFFF"], rating: 81, attack: 84, defense: 76, form: 79, pedigree: 68, titles: "Europa League '25" },
   { id: "new", name: "Newcastle United",    short: "NEW", colors: ["#241F20", "#FFFFFF"], rating: 82, attack: 83, defense: 79, form: 81, pedigree: 66, titles: "League Cup '25" },
   { id: "avl", name: "Aston Villa",         short: "AVL", colors: ["#95BFE5", "#670E36"], rating: 81, attack: 82, defense: 78, form: 80, pedigree: 70, titles: "7 top-flight titles" },
+  { id: "tot", name: "Tottenham Hotspur",   short: "TOT", colors: ["#132257", "#FFFFFF"], rating: 80, attack: 83, defense: 75, form: 78, pedigree: 68, titles: "Europa League '25" },
   { id: "nfo", name: "Nottingham Forest",   short: "NFO", colors: ["#DD0000", "#FFFFFF"], rating: 78, attack: 78, defense: 76, form: 77, pedigree: 72, titles: "2 European Cups" },
   { id: "mun", name: "Manchester United",   short: "MUN", colors: ["#DA020E", "#FBE122"], rating: 78, attack: 79, defense: 73, form: 74, pedigree: 92, titles: "20 top-flight titles" },
-  { id: "bha", name: "Brighton",            short: "BHA", colors: ["#0057B8", "#FFCD00"], rating: 77, attack: 79, defense: 74, form: 77, pedigree: 52, titles: "Est. 1901" },
+  { id: "bha", name: "Brighton & Hove Albion", short: "BHA", colors: ["#0057B8", "#FFCD00"], rating: 77, attack: 79, defense: 74, form: 77, pedigree: 52, titles: "Est. 1901" },
   { id: "cry", name: "Crystal Palace",      short: "CRY", colors: ["#1B458F", "#C4122E"], rating: 77, attack: 76, defense: 76, form: 78, pedigree: 55, titles: "FA Cup 2025" },
   { id: "bou", name: "Bournemouth",         short: "BOU", colors: ["#DA291C", "#000000"], rating: 76, attack: 77, defense: 73, form: 76, pedigree: 48, titles: "Est. 1899" },
   { id: "bre", name: "Brentford",           short: "BRE", colors: ["#D20000", "#FBB800"], rating: 74, attack: 76, defense: 70, form: 73, pedigree: 50, titles: "Est. 1889" },
   { id: "ful", name: "Fulham",              short: "FUL", colors: ["#FFFFFF", "#000000"], rating: 74, attack: 74, defense: 72, form: 73, pedigree: 54, titles: "Est. 1879" },
-  { id: "whu", name: "West Ham United",     short: "WHU", colors: ["#7A263A", "#1BB1E7"], rating: 72, attack: 73, defense: 70, form: 70, pedigree: 60, titles: "Conference '23" },
-  { id: "wol", name: "Wolves",              short: "WOL", colors: ["#FDB913", "#231F20"], rating: 71, attack: 71, defense: 69, form: 70, pedigree: 62, titles: "3 top-flight titles" },
   { id: "eve", name: "Everton",             short: "EVE", colors: ["#003399", "#FFFFFF"], rating: 72, attack: 71, defense: 73, form: 72, pedigree: 74, titles: "9 top-flight titles" },
-  { id: "lee", name: "Leeds United",        short: "LEE", colors: ["#FFFFFF", "#1D428A"], rating: 71, attack: 73, defense: 68, form: 74, pedigree: 66, titles: "Promoted 2025" },
-  { id: "bur", name: "Burnley",             short: "BUR", colors: ["#6C1D45", "#99D6EA"], rating: 70, attack: 69, defense: 72, form: 72, pedigree: 58, titles: "Promoted 2025" },
-  { id: "sun", name: "Sunderland",          short: "SUN", colors: ["#EB172B", "#FFFFFF"], rating: 70, attack: 71, defense: 69, form: 73, pedigree: 56, titles: "Promoted 2025" },
+  { id: "lee", name: "Leeds United",        short: "LEE", colors: ["#FFFFFF", "#1D428A"], rating: 71, attack: 73, defense: 68, form: 73, pedigree: 66, titles: "3 top-flight titles" },
+  { id: "sun", name: "Sunderland",          short: "SUN", colors: ["#EB172B", "#FFFFFF"], rating: 70, attack: 71, defense: 69, form: 72, pedigree: 56, titles: "6 top-flight titles" },
+  { id: "ips", name: "Ipswich Town",        short: "IPS", colors: ["#3A64A3", "#FFFFFF"], rating: 69, attack: 70, defense: 67, form: 70, pedigree: 50, titles: "1 top-flight title" },
+  { id: "cov", name: "Coventry City",       short: "COV", colors: ["#78D0F1", "#FFFFFF"], rating: 68, attack: 70, defense: 66, form: 71, pedigree: 48, titles: "FA Cup 1987" },
+  { id: "hul", name: "Hull City",           short: "HUL", colors: ["#F18A01", "#000000"], rating: 67, attack: 68, defense: 66, form: 68, pedigree: 44, titles: "Est. 1904" },
 ];
 
 const WORLD_CUP = [
