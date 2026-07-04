@@ -25,6 +25,12 @@ const TOURNAMENTS = {
   premier: { code: "PL", label: "Premier League" },
 };
 
+// Env-var names accepted for the football-data.org token (first match wins).
+const TOKEN_VARS = [
+  "FOOTBALL_DATA_TOKEN", "FOOTBALL_DATA_KEY",
+  "FOOTBALL_DATA_API_TOKEN", "FOOTBALL_DATA_API_KEY", "FOOTBALLDATA_TOKEN",
+];
+
 const STAGE_LABELS = {
   REGULAR_SEASON: "League", GROUP_STAGE: "Group stage",
   PRELIMINARY_ROUND: "Preliminary", QUALIFICATION: "Qualification",
@@ -46,9 +52,24 @@ module.exports = async (req, res) => {
 
   const tournamentId = String(req.query.tournament || "world").toLowerCase();
   const cfg = TOURNAMENTS[tournamentId];
-  if (!cfg) return json(res, 400, { error: `unknown tournament '${tournamentId}'` });
+  if (!cfg && !req.query.debug) return json(res, 400, { error: `unknown tournament '${tournamentId}'` });
 
-  const token = process.env.FOOTBALL_DATA_TOKEN;
+  // Accept a few common env-var names so a slightly-off name still works.
+  // NOTE: the value must be a football-data.org token (not an API-Football key).
+  const tokenVar = TOKEN_VARS.find((v) => process.env[v]);
+  const token = tokenVar ? process.env[tokenVar] : null;
+
+  // `?debug=1` reports what the server sees WITHOUT leaking the token value.
+  if (req.query.debug) {
+    return json(res, 200, {
+      debug: true,
+      tokenPresent: !!token,
+      tokenVarUsed: tokenVar || null,
+      checkedEnvVars: Object.fromEntries(TOKEN_VARS.map((v) => [v, !!process.env[v]])),
+      tournament: tournamentId,
+    });
+  }
+
   if (!token) {
     return json(res, 200, { source: "fallback", reason: "no_token", tournament: tournamentId });
   }
