@@ -5,7 +5,7 @@
 
 (() => {
   // Bump this on every deploy so you can confirm the live site is up to date.
-  const APP_VERSION = "v1.5.0";
+  const APP_VERSION = "v1.6.0";
 
   const state = {
     step: 1,
@@ -709,10 +709,17 @@
       const pills = f
         ? [...f].map((r) => `<span class="form-pill f-${r}">${r}</span>`).join("")
         : `<span class="form-none">no recent matches</span>`;
+      const lv = team.live;
+      const goals = lv && lv.played
+        ? `<div class="form-goals">${lv.goalsFor} scored · ${lv.goalsAgainst} conceded · ${lv.played} played</div>`
+        : "";
       return `
         <div class="form-row">
           <div class="form-team">${crest(team)}<span>${team.short}</span></div>
-          <div class="form-pills">${pills}</div>
+          <div class="form-meta">
+            <div class="form-pills">${pills}</div>
+            ${goals}
+          </div>
         </div>`;
     };
     return `

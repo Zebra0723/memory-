@@ -59,13 +59,25 @@ const Predictor = (() => {
     const effA = effectiveRating(teamA, teamB, bonusA);
     const effB = effectiveRating(teamB, teamA, bonusB);
 
-    // Expected goals: scale by attacking strength & the Elo rating gap.
-    const baseGoals = 1.35; // league-ish average per side
-    const attackFactorA = 0.6 + teamA.attack / 100;
-    const attackFactorB = 0.6 + teamB.attack / 100;
-    const eloTilt = (effA - effB) / 120;
-    const xgA = clamp(baseGoals * attackFactorA + eloTilt, 0.2, 4.2);
-    const xgB = clamp(baseGoals * attackFactorB - eloTilt, 0.2, 4.2);
+    // Expected goals — a proper attack-vs-defense (Dixon–Coles style) model
+    // built from each side's tournament scoring: a team's attacking strength is
+    // measured against the OPPONENT's defensive weakness (both derived from
+    // real goals for / against), then adjusted for recent form and venue. A
+    // small secondary tilt from overall rating/pedigree keeps class relevant in
+    // tight games. This makes the projected goals — and the scoreline — specific
+    // to the matchup instead of collapsing to the same result every time.
+    const LEAGUE_AVG = 1.42; // goals per side, roughly
+    const goalsExp = (t, opp, homeMult) => {
+      const attackMult = t.attack / 72;             // >1 → scores above average
+      const defWeakness = (144 - opp.defense) / 72; // >1 → opponent leaks goals
+      const formMult = 1 + (t.form - 70) / 260;     // recent scoring momentum
+      return LEAGUE_AVG * attackMult * defWeakness * formMult * homeMult;
+    };
+    const homeMultA = venue === "home" ? 1 + homeAdvantage / 55 : 1;
+    const homeMultB = venue === "away" ? 1 + homeAdvantage / 55 : 1;
+    const ratingTilt = clamp((effA - effB) / 380, -0.22, 0.22);
+    const xgA = clamp(goalsExp(teamA, teamB, homeMultA) * (1 + ratingTilt), 0.15, 4.6);
+    const xgB = clamp(goalsExp(teamB, teamA, homeMultB) * (1 - ratingTilt), 0.15, 4.6);
 
     // Win / draw / loss probabilities come from the SAME Poisson goals model
     // as the match simulator, so the headline odds, the scorelines and the
@@ -74,11 +86,16 @@ const Predictor = (() => {
 
     const scoreGrid = buildScoreGrid(xgA, xgB);
 
-    // Headline scoreline from rounded xG, but avoid showing a draw when one
-    // side is a clear favourite — nudge the extra goal to whoever's ahead.
-    let scoreA = Math.round(xgA), scoreB = Math.round(xgB);
-    if (scoreA === scoreB && Math.abs(winA - winB) > 0.12) {
-      if (winA > winB) scoreA += 1; else scoreB += 1;
+    // Headline scoreline = the single most likely EXACT result (the mode of the
+    // Poisson grid), so it varies with the projected goals instead of always
+    // rounding to 2-2. For a clear favourite, skip a drawn mode and surface
+    // their most likely winning scoreline.
+    let top = scoreGrid[0];
+    if (top.a === top.b && Math.abs(winA - winB) > 0.04) {
+      // There's a favourite but the modal score is a draw — show their most
+      // likely winning scoreline so the result reflects the edge.
+      const favA = winA > winB;
+      top = scoreGrid.find((s) => (favA ? s.a > s.b : s.b > s.a)) || top;
     }
 
     return {
@@ -86,7 +103,7 @@ const Predictor = (() => {
       effA, effB,
       probs: { winA, draw, winB },
       xg: { a: xgA, b: xgB },
-      predictedScore: { a: scoreA, b: scoreB },
+      predictedScore: { a: top.a, b: top.b },
       topScores: scoreGrid.slice(0, 5),
       confidence: confidenceLabel(Math.max(winA, winB, draw)),
       // Only crown a favourite when the edge is meaningful (>3 pts), else it's
