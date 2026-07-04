@@ -19,12 +19,21 @@ function** that runs on Vercel:
 ```
 browser  →  /api/teams  (serverless, holds the secret key)  →  football-data.org
                     ↓
-        live standings → derived ratings → JSON → the predictor
+   full match list (group + knockout) → derived ratings + fixtures → predictor
 ```
 
 Data comes from **[football-data.org](https://www.football-data.org/)**, whose
 **free tier covers both the World Cup and the Premier League** — no paid plan
-needed.
+needed. The function reads the competition's **complete match list** (every
+stage, group **and** knockout), so:
+
+- **Ratings & form** are derived from *all* finished matches — a team's form
+  reflects its Round of 16 / quarter-final results, not just the frozen group
+  table.
+- The app ships a **Fixtures** browser: real matches grouped by stage
+  (Group → Round of 16 → Quarter-finals → Semi-finals → Final), with live/FT
+  status and scores. Tap any fixture to predict it; for matches already played,
+  the **actual result** is shown next to the prediction.
 
 - `attack` ← goals scored per game
 - `defense` ← goals conceded per game (inverted)
@@ -99,7 +108,9 @@ vercel.json         # Vercel config
 
 - **API token** → Vercel env var `FOOTBALL_DATA_TOKEN` (or `.env` locally)
 - **Competitions** → `TOURNAMENTS` in `api/teams.js` (World Cup = `WC`,
-  Premier League = `PL`); football-data.org serves the current season for each.
+  Premier League = `PL`); add more free-tier competitions here to extend the menu.
+  The function reads `/competitions/{code}/matches`, so it always covers the
+  current season's full schedule including knockouts.
 - **Model weights** → the `W` object in `js/predictor.js`
 - **Restyle** → CSS custom properties in `:root` (`css/styles.css`)
 

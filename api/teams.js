@@ -1,34 +1,47 @@
 /*
- * Vercel serverless function — live team data.
+ * Vercel serverless function — live team data + fixtures.
  *
  *   GET /api/teams?tournament=world|premier
  *
- * Fetches live standings from football-data.org (v4) using the secret
- * FOOTBALL_DATA_TOKEN env var, then derives the rating block
- * (rating / attack / defense / form) the client-side predictor consumes.
+ * Fetches the FULL match list from football-data.org (v4) — every match across
+ * every stage, group AND knockout — using the secret FOOTBALL_DATA_TOKEN.
+ * From it we:
+ *   1. derive each team's rating block from ALL finished matches (so knockout
+ *      results count, not just the frozen group tables), and
+ *   2. return a shaped `fixtures` list (group + Round of 16 → Final) so the UI
+ *      can browse and predict real matches including the knockouts.
  *
- * football-data.org's FREE tier covers both the World Cup (competition code
- * "WC") and the Premier League ("PL"), so no paid plan is required.
- *
- * The token is NEVER exposed to the browser — that is why this runs on a
- * server. If it's missing or the upstream call fails, we return
- * { source: "fallback" } so the client falls back to bundled sample ratings.
+ * football-data.org's FREE tier covers the World Cup ("WC") and Premier League
+ * ("PL"). The token is never exposed to the browser. On any failure we return
+ * { source: "fallback" } and the client uses bundled sample ratings.
  */
 
 const { metaFor } = require("./_meta");
 
 const API_BASE = "https://api.football-data.org/v4";
 
-// Map our tournament ids to football-data.org competition codes.
 const TOURNAMENTS = {
   world:   { code: "WC", label: "World Cup" },
   premier: { code: "PL", label: "Premier League" },
 };
 
+const STAGE_LABELS = {
+  REGULAR_SEASON: "League", GROUP_STAGE: "Group stage",
+  PRELIMINARY_ROUND: "Preliminary", QUALIFICATION: "Qualification",
+  LAST_32: "Round of 32", LAST_16: "Round of 16",
+  QUARTER_FINALS: "Quarter-finals", SEMI_FINALS: "Semi-finals",
+  THIRD_PLACE: "Third-place play-off", FINAL: "Final", PLAYOFFS: "Play-offs",
+};
+
+// Ordered deepest-first so knockouts surface at the top of the fixtures view.
+const STAGE_ORDER = [
+  "FINAL", "THIRD_PLACE", "SEMI_FINALS", "QUARTER_FINALS", "LAST_16", "LAST_32",
+  "PLAYOFFS", "GROUP_STAGE", "REGULAR_SEASON", "QUALIFICATION", "PRELIMINARY_ROUND",
+];
+const KNOCKOUT = new Set(["LAST_32", "LAST_16", "QUARTER_FINALS", "SEMI_FINALS", "THIRD_PLACE", "FINAL", "PLAYOFFS"]);
+
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  // Edge-cache 30 min: the free tier is rate-limited (10 req/min) and standings
-  // change at most once per match, so we must not refetch on every page load.
   res.setHeader("Cache-Control", "s-maxage=1800, stale-while-revalidate=3600");
 
   const tournamentId = String(req.query.tournament || "world").toLowerCase();
@@ -41,110 +54,143 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const url = `${API_BASE}/competitions/${cfg.code}/standings`;
+    const url = `${API_BASE}/competitions/${cfg.code}/matches`;
     const upstream = await fetch(url, { headers: { "X-Auth-Token": token } });
 
     if (!upstream.ok) {
-      // 403 usually means the competition/season isn't on your plan or window.
       return json(res, 200, { source: "fallback", reason: `upstream_${upstream.status}`, tournament: tournamentId });
     }
 
     const data = await upstream.json();
-
-    // Flatten the TOTAL table across every group (WC has 12 groups; PL has one).
-    const rows = (data.standings || [])
-      .filter((s) => (s.type || "TOTAL") === "TOTAL")
-      .flatMap((s) => (s.table || []).map((r) => ({ row: r, group: s.group || s.stage || null })));
-
-    if (!rows.length) {
-      return json(res, 200, { source: "fallback", reason: "no_standings", tournament: tournamentId });
+    const matches = Array.isArray(data.matches) ? data.matches : [];
+    if (!matches.length) {
+      return json(res, 200, { source: "fallback", reason: "no_matches", tournament: tournamentId });
     }
 
-    const teams = rows
-      .map(({ row, group }) => buildTeam(row, group))
-      .filter(Boolean)
-      .filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i)
-      .sort((a, b) => b.rating - a.rating);
+    const teams = buildTeams(matches);
+    if (!teams.length) {
+      return json(res, 200, { source: "fallback", reason: "no_results_yet", tournament: tournamentId });
+    }
+
+    const fixtures = buildFixtures(matches);
+    const hasKnockout = fixtures.some((f) => f.knockout);
 
     return json(res, 200, {
       source: "live",
       tournament: tournamentId,
       label: cfg.label,
-      season: data?.season?.startDate ? data.season.startDate.slice(0, 4) : null,
       updated: new Date().toISOString(),
+      hasKnockout,
       teams,
+      fixtures,
     });
   } catch (err) {
     return json(res, 200, { source: "fallback", reason: "exception", detail: String(err), tournament: tournamentId });
   }
 };
 
-// Turn one football-data.org standings row into a predictor-ready team object.
-function buildTeam(row, group) {
-  const team = row.team || {};
-  if (!team.id || !team.name) return null;
+// ---- derive team ratings from every finished match ---------------------
+function buildTeams(matches) {
+  const acc = new Map(); // teamId -> aggregate
 
-  const played = row.playedGames || 0;
-  const gf = row.goalsFor || 0;
-  const ga = row.goalsAgainst || 0;
-  const pts = row.points || 0;
-  const gd = row.goalDifference != null ? row.goalDifference : gf - ga;
-
-  const ppg = played ? pts / played : 0;
-  const gfpg = played ? gf / played : 0;
-  const gapg = played ? ga / played : 0;
-  const formRatio = parseForm(row.form); // 0..1 or null
-
-  const rating = clampRound(50 + ppg * 13 + gd * 1.4, 45, 96);
-  const attack = clampRound(46 + gfpg * 18, 40, 98);
-  const defense = clampRound(90 - gapg * 20, 40, 95);
-  const form = clampRound(
-    formRatio != null ? 50 + formRatio * 42 : 50 + (ppg / 3) * 42,
-    45, 95
-  );
-
-  const meta = metaFor(team.name);
-
-  return {
-    id: "t" + team.id,
-    name: team.shortName || team.name,
-    short: team.tla || meta.short, // football-data.org gives a real 3-letter code
-    colors: meta.colors,
-    logo: team.crest || null,
-    rating, attack, defense, form,
-    pedigree: meta.pedigree,
-    titles: meta.titles,
-    // Live context so the numbers trace back to real results.
-    live: {
-      played,
-      record: `${row.won || 0}W-${row.draw || 0}D-${row.lost || 0}L`,
-      goalsFor: gf,
-      goalsAgainst: ga,
-      form: normalizeForm(row.form),
-      rank: row.position || null,
-      group,
-    },
+  const side = (team, gf, ga, result, date) => {
+    if (!team || !team.id) return;
+    let a = acc.get(team.id);
+    if (!a) { a = { team, played: 0, gf: 0, ga: 0, w: 0, d: 0, l: 0, results: [] }; acc.set(team.id, a); }
+    a.played++; a.gf += gf; a.ga += ga;
+    if (result === "W") a.w++; else if (result === "L") a.l++; else a.d++;
+    a.results.push({ date, r: result });
   };
+
+  for (const m of matches) {
+    if (m.status !== "FINISHED") continue;
+    const ft = (m.score && m.score.fullTime) || {};
+    if (ft.home == null || ft.away == null) continue;
+    const winner = m.score && m.score.winner; // HOME_TEAM | AWAY_TEAM | DRAW
+    const homeRes = winner === "DRAW" ? "D" : winner === "HOME_TEAM" ? "W" : winner === "AWAY_TEAM" ? "L" : cmp(ft.home, ft.away);
+    const awayRes = homeRes === "D" ? "D" : homeRes === "W" ? "L" : "W";
+    side(m.homeTeam, ft.home, ft.away, homeRes, m.utcDate);
+    side(m.awayTeam, ft.away, ft.home, awayRes, m.utcDate);
+  }
+
+  const teams = [];
+  for (const a of acc.values()) {
+    const played = a.played;
+    const pts = a.w * 3 + a.d;
+    const gd = a.gf - a.ga;
+    const ppg = played ? pts / played : 0;
+    const gfpg = played ? a.gf / played : 0;
+    const gapg = played ? a.ga / played : 0;
+
+    // Last five results, chronological (oldest -> latest).
+    const last5 = a.results.slice().sort((x, y) => new Date(x.date) - new Date(y.date)).slice(-5);
+    const formStr = last5.map((r) => r.r).join("");
+    const formRatio = last5.length ? last5.reduce((s, r) => s + (r.r === "W" ? 1 : r.r === "D" ? 0.5 : 0), 0) / last5.length : null;
+
+    const rating = clampRound(50 + ppg * 13 + gd * 1.4, 45, 96);
+    const attack = clampRound(46 + gfpg * 18, 40, 98);
+    const defense = clampRound(90 - gapg * 20, 40, 95);
+    const form = clampRound(formRatio != null ? 50 + formRatio * 42 : 50 + (ppg / 3) * 42, 45, 95);
+
+    const meta = metaFor(a.team.name);
+    teams.push({
+      id: "t" + a.team.id,
+      name: a.team.shortName || a.team.name,
+      short: a.team.tla || meta.short,
+      colors: meta.colors,
+      logo: a.team.crest || null,
+      rating, attack, defense, form,
+      pedigree: meta.pedigree,
+      titles: meta.titles,
+      live: {
+        played,
+        record: `${a.w}W-${a.d}D-${a.l}L`,
+        goalsFor: a.gf,
+        goalsAgainst: a.ga,
+        form: formStr,
+      },
+    });
+  }
+  return teams.sort((a, b) => b.rating - a.rating);
 }
 
-// football-data.org form looks like "W,W,D,L,W"; API-style is "WWDLW".
-function parseForm(form) {
-  if (!form) return null;
-  const map = { W: 1, D: 0.5, L: 0 };
-  const chars = [...String(form).toUpperCase()].filter((c) => map[c] !== undefined);
-  if (!chars.length) return null;
-  return chars.reduce((s, c) => s + map[c], 0) / chars.length;
+// ---- shape the fixture list (all stages) -------------------------------
+function buildFixtures(matches) {
+  return matches
+    .map((m) => {
+      const ft = (m.score && m.score.fullTime) || {};
+      const finished = m.status === "FINISHED" && ft.home != null && ft.away != null;
+      return {
+        id: m.id,
+        stage: m.stage,
+        stageLabel: STAGE_LABELS[m.stage] || titleize(m.stage),
+        stageRank: STAGE_ORDER.indexOf(m.stage),
+        group: m.group || null,
+        utcDate: m.utcDate,
+        status: m.status,
+        knockout: KNOCKOUT.has(m.stage),
+        home: teamRef(m.homeTeam),
+        away: teamRef(m.awayTeam),
+        score: finished
+          ? { home: ft.home, away: ft.away, winner: m.score.winner, duration: m.score.duration || "REGULAR" }
+          : null,
+      };
+    })
+    .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
 }
 
-// Return a clean "WWDLW" string (last 5) for display.
-function normalizeForm(form) {
-  if (!form) return "";
-  return [...String(form).toUpperCase()].filter((c) => "WDL".includes(c)).slice(-5).join("");
+function teamRef(t) {
+  if (!t || !t.id) return { id: null, name: "To be decided", tla: "TBD" };
+  return { id: "t" + t.id, name: t.shortName || t.name, tla: t.tla || metaFor(t.name).short, crest: t.crest || null };
 }
 
-function clampRound(x, lo, hi) {
-  return Math.max(lo, Math.min(hi, Math.round(x)));
+function cmp(a, b) { return a > b ? "W" : a < b ? "L" : "D"; }
+
+function titleize(s) {
+  return String(s || "").toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
+
+function clampRound(x, lo, hi) { return Math.max(lo, Math.min(hi, Math.round(x))); }
 
 function json(res, status, body) {
   res.status(status).setHeader("Content-Type", "application/json");

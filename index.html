@@ -68,7 +68,12 @@
         </div>
       </div>
 
-      <div class="team-picker">
+      <div class="mode-tabs" id="modeTabs">
+        <button class="mode-tab active" data-mode="picker">Pick teams</button>
+        <button class="mode-tab" data-mode="fixtures">Fixtures</button>
+      </div>
+
+      <div class="team-picker" id="pickerPanel">
         <div class="search-wrap">
           <span class="search-icon" data-icon="search"></span>
           <input type="text" id="teamSearch" class="search-input" placeholder="Search teams…" autocomplete="off" />
@@ -76,6 +81,8 @@
         </div>
         <div class="team-list" id="teamList"></div>
       </div>
+
+      <div class="fixtures-panel" id="fixturesPanel" hidden></div>
 
       <div class="screen-actions">
         <button class="ghost-btn" data-goto="1">← Back</button>

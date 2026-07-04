@@ -104,9 +104,13 @@
     state.source = result.source;
     state.updated = result.updated || null;
     state.reason = result.reason || null;
+    state.fixtures = result.fixtures || [];
+    state.hasKnockout = result.hasKnockout || false;
 
     renderDataBadge();
+    setMode("picker");
     renderTeamList();
+    updateFixturesTab();
   }
 
   /*
@@ -122,7 +126,10 @@
       if (!res.ok) throw new Error("http_" + res.status);
       const data = await res.json();
       if (data.source === "live" && Array.isArray(data.teams) && data.teams.length) {
-        return { teams: data.teams, source: "live", updated: data.updated };
+        return {
+          teams: data.teams, source: "live", updated: data.updated,
+          fixtures: data.fixtures || [], hasKnockout: data.hasKnockout || false,
+        };
       }
       return { teams: base.teams, source: "fallback", reason: data.reason || "no_live_data" };
     } catch (err) {
@@ -242,6 +249,121 @@
     renderTeamList($("#teamSearch").value);
   }
 
+  // ---- Fixtures view ---------------------------------------------------
+  function teamById(id) {
+    return state.dataset.teams.find((t) => t.id === id);
+  }
+
+  function setMode(mode) {
+    $$("#modeTabs .mode-tab").forEach((t) => t.classList.toggle("active", t.dataset.mode === mode));
+    $("#pickerPanel").hidden = mode !== "picker";
+    $("#fixturesPanel").hidden = mode !== "fixtures";
+    if (mode === "fixtures") renderFixtures();
+  }
+
+  function updateFixturesTab() {
+    const tab = $('#modeTabs .mode-tab[data-mode="fixtures"]');
+    const n = (state.fixtures || []).length;
+    tab.textContent = n ? `Fixtures (${n})` : "Fixtures";
+  }
+
+  function renderFixtures() {
+    const panel = $("#fixturesPanel");
+    const fx = state.fixtures || [];
+    if (!fx.length) {
+      panel.innerHTML = `<div class="fx-empty">${icon("warning")} Live fixtures appear here once connected to live tournament data. In sample mode there's no real schedule to show.</div>`;
+      return;
+    }
+    // Group by stage, deepest-first (knockouts on top).
+    const groups = new Map();
+    fx.forEach((f) => {
+      const k = f.stage || "OTHER";
+      if (!groups.has(k)) groups.set(k, { label: f.stageLabel, rank: f.stageRank < 0 ? 99 : f.stageRank, knockout: f.knockout, items: [] });
+      groups.get(k).items.push(f);
+    });
+    const ordered = [...groups.values()].sort((a, b) => a.rank - b.rank);
+
+    panel.innerHTML = ordered
+      .map((g) => {
+        let items = g.items;
+        let note = "";
+        if (!g.knockout && items.length > 18) {
+          items = windowMatches(items);
+          note = `<span class="fx-note">recent &amp; upcoming</span>`;
+        }
+        return `<div class="fx-group">
+          <div class="fx-head">${g.knockout ? icon("trophy") : ""}<span>${g.label}</span><span class="fx-count">${g.items.length}</span>${note}</div>
+          ${items.map(fixtureRow).join("")}
+        </div>`;
+      })
+      .join("");
+
+    $$("#fixturesPanel .fx-row.clickable").forEach((row) =>
+      row.addEventListener("click", () => onFixtureClick(row.dataset.id))
+    );
+  }
+
+  // For long league lists, show a window around "now" (recent + upcoming).
+  function windowMatches(items) {
+    let idx = items.findIndex((f) => f.status !== "FINISHED");
+    if (idx < 0) return items.slice(-12);
+    return items.slice(Math.max(0, idx - 6), idx + 12);
+  }
+
+  function fxCrest(ref) {
+    const team = ref.id && teamById(ref.id);
+    const [c1, c2] = team ? team.colors : ["#3a4457", "#232b3a"];
+    return `<span class="fx-crest" style="background:linear-gradient(135deg,${c1},${c2})">${ref.tla}</span>`;
+  }
+
+  function fixtureRow(f) {
+    const known = f.home.id && f.away.id;
+    const clickable = known && teamById(f.home.id) && teamById(f.away.id);
+    const center = f.score
+      ? `<span class="fx-score">${f.score.home}<span>–</span>${f.score.away}</span>${f.score.duration === "PENALTY_SHOOTOUT" ? '<span class="fx-pens">pens</span>' : ""}`
+      : `<span class="fx-time">${fmtDate(f.utcDate)}</span>`;
+    const chip = statusChip(f);
+    return `<div class="fx-row ${clickable ? "clickable" : "disabled"}" data-id="${f.id}">
+      <div class="fx-team home"><span class="fx-name">${f.home.tla}</span>${fxCrest(f.home)}</div>
+      <div class="fx-center">${center}${chip}</div>
+      <div class="fx-team away">${fxCrest(f.away)}<span class="fx-name">${f.away.tla}</span></div>
+    </div>`;
+  }
+
+  function statusChip(f) {
+    if (f.status === "IN_PLAY" || f.status === "PAUSED") return `<span class="fx-chip live"><span class="dot-live"></span>LIVE</span>`;
+    if (f.status === "FINISHED") return `<span class="fx-chip ft">FT</span>`;
+    if (f.status === "POSTPONED" || f.status === "CANCELLED" || f.status === "SUSPENDED") return `<span class="fx-chip off">${titleCase(f.status)}</span>`;
+    return "";
+  }
+
+  function titleCase(s) { return s.charAt(0) + s.slice(1).toLowerCase(); }
+
+  function fmtDate(iso) {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + ", " +
+             d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    } catch { return ""; }
+  }
+
+  function onFixtureClick(id) {
+    const f = (state.fixtures || []).find((x) => String(x.id) === String(id));
+    if (!f) return;
+    const A = teamById(f.home.id), B = teamById(f.away.id);
+    if (!A || !B) return;
+    state.teamA = A;
+    state.teamB = B;
+    // WC knockouts play on neutral(ish) ground; league matches have a real host.
+    state.venue = state.dataset.id === "world" ? "neutral" : "home";
+    state.fixtureActual = f.score
+      ? { a: f.score.home, b: f.score.away, winner: f.score.winner, duration: f.score.duration }
+      : null;
+    state.fixtureMeta = { stageLabel: f.stageLabel, utcDate: f.utcDate, status: f.status };
+    renderSlots();
+    runPrediction();
+  }
+
   // ---- STEP 3: venue ---------------------------------------------------
   function renderVenue() {
     const A = state.teamA, B = state.teamB;
@@ -303,7 +425,7 @@
           </div>
           <div class="result-score">
             ${predictedScore.a} – ${predictedScore.b}
-            <small>${venueNote}</small>
+            <small>Predicted · ${state.fixtureMeta ? state.fixtureMeta.stageLabel : venueNote}</small>
           </div>
           <div class="result-team">
             ${crest(teamB, "big")}
@@ -311,6 +433,7 @@
             ${liveTag(teamB)}
           </div>
         </div>
+        ${actualResultNote()}
         ${resultSourceNote()}
         <div class="confidence-pill ${confidence.level}">${confidence.text}</div>
 
@@ -371,6 +494,16 @@
   function liveTag(team) {
     if (!team.live) return "";
     return `<span class="rt-live">${team.live.record}</span>`;
+  }
+
+  function actualResultNote() {
+    const a = state.fixtureActual;
+    if (!a) return "";
+    const suffix = a.duration === "PENALTY_SHOOTOUT" ? " (a.e.t., pens)" : a.duration === "EXTRA_TIME" ? " (a.e.t.)" : "";
+    const hit = (state.lastPrediction &&
+      Math.sign(state.lastPrediction.predictedScore.a - state.lastPrediction.predictedScore.b) === Math.sign(a.a - a.b));
+    return `<div class="actual-note"><span class="actual-k">Actual result</span> <strong>${a.a}–${a.b}</strong>${suffix}
+      ${hit ? `<span class="actual-hit">outcome called</span>` : ""}</div>`;
   }
 
   function resultSourceNote() {
@@ -584,6 +717,11 @@
     applyTheme(next);
   }
 
+  function clearFixtureContext() {
+    state.fixtureActual = null;
+    state.fixtureMeta = null;
+  }
+
   // ---- Surprise me: random matchup ------------------------------------
   function surpriseMe() {
     const teams = state.dataset && state.dataset.teams;
@@ -604,16 +742,19 @@
     renderTournaments();
 
     $("#themeToggle").addEventListener("click", toggleTheme);
-    $("#surpriseBtn").addEventListener("click", surpriseMe);
+    $("#surpriseBtn").addEventListener("click", () => { clearFixtureContext(); surpriseMe(); });
     $("#teamSearch").addEventListener("input", (e) => renderTeamList(e.target.value));
+
+    $$("#modeTabs .mode-tab").forEach((t) => t.addEventListener("click", () => setMode(t.dataset.mode)));
 
     $("#toVenue").addEventListener("click", () => {
       renderVenue();
       goto(3);
     });
-    $("#runPrediction").addEventListener("click", runPrediction);
+    $("#runPrediction").addEventListener("click", () => { clearFixtureContext(); runPrediction(); });
 
     $("#rematchBtn").addEventListener("click", () => {
+      clearFixtureContext(); // a swapped line-up no longer matches the real result
       [state.teamA, state.teamB] = [state.teamB, state.teamA];
       if (state.venue === "home") state.venue = "away";
       else if (state.venue === "away") state.venue = "home";
@@ -623,6 +764,8 @@
     $("#resetBtn").addEventListener("click", () => {
       state.dataset = state.teamA = state.teamB = null;
       state.venue = "neutral";
+      state.fixtures = [];
+      clearFixtureContext();
       goto(1);
     });
 
