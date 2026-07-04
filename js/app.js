@@ -5,7 +5,7 @@
 
 (() => {
   // Bump this on every deploy so you can confirm the live site is up to date.
-  const APP_VERSION = "v1.3.0";
+  const APP_VERSION = "v1.4.0";
 
   const state = {
     step: 1,
@@ -80,6 +80,23 @@
       el.classList.toggle("active", n === state.step);
       el.classList.toggle("done", n < state.step);
     });
+  }
+
+  // Fetch the REAL competition emblems from the API and re-render the cards.
+  // Cards render immediately with illustrations; correct logos swap in once
+  // this resolves. On failure the illustrations simply stay.
+  async function loadEmblems() {
+    try {
+      const res = await fetch("/api/competitions", { headers: { Accept: "application/json" }, cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.emblems || !Object.keys(data.emblems).length) return;
+      let changed = false;
+      Object.entries(data.emblems).forEach(([id, url]) => {
+        if (DATASETS[id] && url) { DATASETS[id].emblem = url; changed = true; }
+      });
+      if (changed && state.step === 1) renderTournaments();
+    } catch (err) { /* keep illustrations */ }
   }
 
   // ---- STEP 1: tournaments --------------------------------------------
@@ -769,6 +786,7 @@
     hydrateIcons();
     $("#appVersion").textContent = APP_VERSION;
     renderTournaments();
+    loadEmblems();
 
     $("#themeToggle").addEventListener("click", toggleTheme);
     $("#surpriseBtn").addEventListener("click", () => { clearFixtureContext(); surpriseMe(); });
