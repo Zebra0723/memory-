@@ -19,9 +19,21 @@
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
   // ---- helpers ---------------------------------------------------------
+  // A crest tile: shows the real club badge / national flag when a logo URL is
+  // available (live data), otherwise a colour tile with the team's short code.
+  // If the image fails to load it gracefully reverts to the colour tile.
+  function badge(team, baseClass) {
+    const [c1, c2] = team.colors || ["#3a4457", "#232b3a"];
+    const tla = team.short || team.tla || "";
+    const logo = team.logo || team.crest || null;
+    const img = logo
+      ? `<img class="crest-img" src="${logo}" alt="${tla} logo" loading="lazy" onerror="this.parentNode.classList.remove('has-logo');this.remove();">`
+      : "";
+    return `<div class="${baseClass}${logo ? " has-logo" : ""}" style="background:linear-gradient(135deg,${c1},${c2})"><span class="crest-tla">${tla}</span>${img}</div>`;
+  }
+
   function crest(team, cls = "") {
-    const [c1, c2] = team.colors;
-    return `<div class="team-crest ${cls}" style="background:linear-gradient(135deg,${c1},${c2})">${team.short}</div>`;
+    return badge(team, `team-crest ${cls}`.trim());
   }
 
   // Relative luminance (0..1) of a colour; hex only, else assume mid-tone.
@@ -74,10 +86,10 @@
       .map(
         (d) => `
       <div class="tournament-card" data-ds="${d.id}">
-        <div class="t-illus">${ILLUSTRATIONS[d.id] || ""}</div>
+        <div class="t-illus">${ILLUSTRATIONS[d.id] || (d.kind === "nation" ? ILLUSTRATIONS.world : ILLUSTRATIONS.generic)}</div>
         <h3>${d.label}</h3>
         <p>${d.tagline}</p>
-        <div class="t-count">${d.teams.length} teams available →</div>
+        <div class="t-count">${d.teams.length}+ teams · predict →</div>
       </div>`
       )
       .join("");
@@ -226,13 +238,12 @@
     list.innerHTML = teams
       .map((t) => {
         const isSel = state.teamA?.id === t.id || state.teamB?.id === t.id;
-        const [c1, c2] = t.colors;
         const sub = t.live
           ? `Rating ${t.rating} · ${t.live.record}`
           : `Rating ${t.rating}`;
         return `
         <div class="team-chip ${isSel ? "selected" : ""}" data-id="${t.id}">
-          <div class="mini-crest" style="background:linear-gradient(135deg,${c1},${c2})">${t.short}</div>
+          ${badge(t, "mini-crest")}
           <div>
             <div class="chip-name">${t.name}</div>
             <div class="chip-rating">${sub}</div>
@@ -321,8 +332,10 @@
 
   function fxCrest(ref) {
     const team = ref.id && teamById(ref.id);
-    const [c1, c2] = team ? team.colors : ["#3a4457", "#232b3a"];
-    return `<span class="fx-crest" style="background:linear-gradient(135deg,${c1},${c2})">${ref.tla}</span>`;
+    return badge(
+      { colors: team ? team.colors : ["#3a4457", "#232b3a"], short: ref.tla, logo: ref.crest || (team && team.logo) },
+      "fx-crest"
+    );
   }
 
   function fixtureRow(f) {

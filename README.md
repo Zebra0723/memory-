@@ -107,10 +107,13 @@ vercel.json         # Vercel config
 ## Configuring
 
 - **API token** → Vercel env var `FOOTBALL_DATA_TOKEN` (or `.env` locally)
-- **Competitions** → `TOURNAMENTS` in `api/teams.js` (World Cup = `WC`,
-  Premier League = `PL`); add more free-tier competitions here to extend the menu.
-  The function reads `/competitions/{code}/matches`, so it always covers the
-  current season's full schedule including knockouts.
+- **Competitions** (all on football-data.org's free tier): World Cup, Euros,
+  Champions League, Premier League, La Liga, Bundesliga, Serie A, Ligue 1,
+  Primeira Liga, Eredivisie, Championship, Copa Libertadores, Brasileirão.
+  Add/remove them in `TOURNAMENTS` in `api/teams.js`. The function reads
+  `/competitions/{code}/matches`, so each always covers the current season's
+  full schedule including knockouts, and shows real **club badges / national
+  flags** from the provider's `crest` images (colour tiles as fallback).
 - **Model weights** → the `W` object in `js/predictor.js`
 - **Restyle** → CSS custom properties in `:root` (`css/styles.css`)
 

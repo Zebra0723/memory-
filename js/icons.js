@@ -72,6 +72,21 @@ const ILLUSTRATIONS = {
     </svg>`,
 };
 
+// Generic crest for club competitions without a bespoke illustration.
+ILLUSTRATIONS.generic = `
+    <svg viewBox="0 0 64 64" fill="none" width="56" height="56" aria-hidden="true">
+      <defs>
+        <linearGradient id="genG" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#34d399"/><stop offset="1" stop-color="#0891b2"/>
+        </linearGradient>
+      </defs>
+      <path d="M32 5 53 12v18c0 13-10 22-21 27C21 52 11 43 11 30V12z" fill="url(#genG)"/>
+      <path d="M32 5 53 12v18c0 13-10 22-21 27C21 52 11 43 11 30V12z" stroke="#0a0e17" stroke-width="1.4" fill="none" opacity=".25"/>
+      <path d="M24 20h16v4a8 8 0 0 1-16 0v-4Z" fill="#fbbf24"/>
+      <path d="M24 21.5h-3a3 3 0 0 0 3 4M40 21.5h3a3 3 0 0 1-3 4" stroke="#fbbf24" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+      <path d="M32 32v4m-3 4h6m-5 0a3 3 0 0 1 4 0" stroke="#fbbf24" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+
 function icon(name, cls = "") {
   const svg = ICONS[name] || "";
   return cls ? svg.replace('class="ic"', `class="ic ${cls}"`) : svg;

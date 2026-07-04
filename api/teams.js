@@ -20,9 +20,21 @@ const { metaFor } = require("./_meta");
 
 const API_BASE = "https://api.football-data.org/v4";
 
+// All competitions on football-data.org's free tier (code = their id).
 const TOURNAMENTS = {
-  world:   { code: "WC", label: "World Cup" },
-  premier: { code: "PL", label: "Premier League" },
+  world:        { code: "WC",  label: "World Cup" },
+  euros:        { code: "EC",  label: "European Championship" },
+  champions:    { code: "CL",  label: "Champions League" },
+  premier:      { code: "PL",  label: "Premier League" },
+  laliga:       { code: "PD",  label: "La Liga" },
+  bundesliga:   { code: "BL1", label: "Bundesliga" },
+  seriea:       { code: "SA",  label: "Serie A" },
+  ligue1:       { code: "FL1", label: "Ligue 1" },
+  primeira:     { code: "PPL", label: "Primeira Liga" },
+  eredivisie:   { code: "DED", label: "Eredivisie" },
+  championship: { code: "ELC", label: "Championship" },
+  libertadores: { code: "CLI", label: "Copa Libertadores" },
+  brasileirao:  { code: "BSA", label: "Brasileirão" },
 };
 
 // Env-var names accepted for the football-data.org token (first match wins).
