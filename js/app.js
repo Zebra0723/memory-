@@ -120,8 +120,12 @@
    */
   async function loadTeams(dsId, base) {
     try {
+      // `no-store` so the browser never serves a previously-cached response
+      // (old fallbacks were sent with stale-while-revalidate); the CDN still
+      // caches successful live responses server-side.
       const res = await fetch(`/api/teams?tournament=${encodeURIComponent(dsId)}`, {
         headers: { Accept: "application/json" },
+        cache: "no-store",
       });
       if (!res.ok) throw new Error("http_" + res.status);
       const data = await res.json();
