@@ -21,9 +21,18 @@ const Predictor = (() => {
     return team.rating * W.rating + attackEdge + defenseEdge + formEdge + pedigreeEdge + venueBonus;
   }
 
-  // Standard Elo expected score for A against B.
-  function expectedScore(ratingA, ratingB) {
-    return 1 / (1 + Math.pow(10, (ratingB - ratingA) / 40));
+  // Win / draw / loss probabilities from two independent Poisson goal
+  // distributions, summed over the score grid and normalised.
+  function outcomeProbs(xgA, xgB) {
+    let winA = 0, draw = 0, winB = 0;
+    for (let a = 0; a <= 10; a++) {
+      for (let b = 0; b <= 10; b++) {
+        const p = poisson(a, xgA) * poisson(b, xgB);
+        if (a > b) winA += p; else if (a === b) draw += p; else winB += p;
+      }
+    }
+    const t = winA + draw + winB || 1;
+    return { winA: winA / t, draw: draw / t, winB: winB / t };
   }
 
   // Poisson probability mass P(k; lambda).
@@ -50,25 +59,18 @@ const Predictor = (() => {
     const effA = effectiveRating(teamA, teamB, bonusA);
     const effB = effectiveRating(teamB, teamA, bonusB);
 
-    const expA = expectedScore(effA, effB); // 0..1, includes half of draw mass
-
-    // Split the Elo expectation into win/draw/loss. Closer matchups draw more.
-    const margin = Math.abs(effA - effB);
-    const drawProb = clamp(0.30 - margin / 220, 0.10, 0.30);
-    let winA = (expA) * (1 - drawProb);
-    let winB = (1 - expA) * (1 - drawProb);
-    // Re-normalise so the three outcomes sum to 1.
-    const total = winA + winB + drawProb;
-    winA /= total; winB /= total;
-    const draw = drawProb / total;
-
-    // Expected goals: scale by attacking strength & the rating gap.
+    // Expected goals: scale by attacking strength & the Elo rating gap.
     const baseGoals = 1.35; // league-ish average per side
     const attackFactorA = 0.6 + teamA.attack / 100;
     const attackFactorB = 0.6 + teamB.attack / 100;
     const eloTilt = (effA - effB) / 120;
     const xgA = clamp(baseGoals * attackFactorA + eloTilt, 0.2, 4.2);
     const xgB = clamp(baseGoals * attackFactorB - eloTilt, 0.2, 4.2);
+
+    // Win / draw / loss probabilities come from the SAME Poisson goals model
+    // as the match simulator, so the headline odds, the scorelines and the
+    // Monte-Carlo simulation are all mutually consistent.
+    const { winA, draw, winB } = outcomeProbs(xgA, xgB);
 
     const scoreGrid = buildScoreGrid(xgA, xgB);
 
@@ -87,7 +89,9 @@ const Predictor = (() => {
       predictedScore: { a: scoreA, b: scoreB },
       topScores: scoreGrid.slice(0, 5),
       confidence: confidenceLabel(Math.max(winA, winB, draw)),
-      favourite: winA > winB ? teamA : (winB > winA ? teamB : null),
+      // Only crown a favourite when the edge is meaningful (>3 pts), else it's
+      // a genuine toss-up.
+      favourite: Math.abs(winA - winB) < 0.03 ? null : (winA > winB ? teamA : teamB),
       factors: buildFactors(teamA, teamB, venue, homeAdvantage),
     };
   }
@@ -142,5 +146,40 @@ const Predictor = (() => {
 
   function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
 
-  return { predict };
+  // Sample from a Poisson distribution (Knuth's algorithm).
+  function samplePoisson(lambda) {
+    const L = Math.exp(-lambda);
+    let k = 0, p = 1;
+    do { k++; p *= Math.random(); } while (p > L);
+    return k - 1;
+  }
+
+  /*
+   * Monte-Carlo simulation: play the match `n` times by sampling each side's
+   * goals from its expected-goals (Poisson) distribution, and tally outcomes.
+   */
+  function simulate(xgA, xgB, n) {
+    let winA = 0, draw = 0, winB = 0, sumA = 0, sumB = 0, btts = 0;
+    const scores = new Map();
+    for (let i = 0; i < n; i++) {
+      const a = samplePoisson(xgA);
+      const b = samplePoisson(xgB);
+      sumA += a; sumB += b;
+      if (a > b) winA++; else if (b > a) winB++; else draw++;
+      if (a > 0 && b > 0) btts++;
+      const key = a + "-" + b;
+      scores.set(key, (scores.get(key) || 0) + 1);
+    }
+    let topKey = "0-0", topCount = 0;
+    for (const [k, c] of scores) if (c > topCount) { topCount = c; topKey = k; }
+    const [ta, tb] = topKey.split("-").map(Number);
+    return {
+      winA, draw, winB,
+      avgA: sumA / n, avgB: sumB / n,
+      btts,
+      topScore: { a: ta, b: tb, count: topCount },
+    };
+  }
+
+  return { predict, simulate };
 })();

@@ -1,72 +1,68 @@
 /*
  * Vercel serverless function — live team data.
  *
- *   GET /api/teams?tournament=world|premier[&season=YYYY]
+ *   GET /api/teams?tournament=world|premier
  *
- * Fetches the live standings for the requested competition from API-Football
- * (API-SPORTS) using the secret APISPORTS_KEY env var, then derives the rating
- * block (rating / attack / defense / form) that the client-side predictor
- * consumes. Pedigree, colours and honours come from static metadata.
+ * Fetches live standings from football-data.org (v4) using the secret
+ * FOOTBALL_DATA_TOKEN env var, then derives the rating block
+ * (rating / attack / defense / form) the client-side predictor consumes.
  *
- * The API key is NEVER exposed to the browser — that is the whole reason this
- * runs on a server instead of in the page. If the key is missing or the upstream
- * call fails, we return { source: "fallback" } so the client can fall back to
- * its bundled sample ratings and clearly label them as such.
+ * football-data.org's FREE tier covers both the World Cup (competition code
+ * "WC") and the Premier League ("PL"), so no paid plan is required.
+ *
+ * The token is NEVER exposed to the browser — that is why this runs on a
+ * server. If it's missing or the upstream call fails, we return
+ * { source: "fallback" } so the client falls back to bundled sample ratings.
  */
 
 const { metaFor } = require("./_meta");
 
-const API_BASE = "https://v3.football.api-sports.io";
+const API_BASE = "https://api.football-data.org/v4";
 
-// API-Football league ids + the season to read for each competition.
-// Season is the starting year; override with ?season= if the defaults drift.
+// Map our tournament ids to football-data.org competition codes.
 const TOURNAMENTS = {
-  world:   { league: 1,  season: 2026, label: "World Cup" },
-  premier: { league: 39, season: 2025, label: "Premier League" },
+  world:   { code: "WC", label: "World Cup" },
+  premier: { code: "PL", label: "Premier League" },
 };
 
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  // Edge-cache 30 min; the upstream feed only refreshes hourly and the free
-  // tier is rate-limited, so we must not hammer it on every page load.
+  // Edge-cache 30 min: the free tier is rate-limited (10 req/min) and standings
+  // change at most once per match, so we must not refetch on every page load.
   res.setHeader("Cache-Control", "s-maxage=1800, stale-while-revalidate=3600");
 
   const tournamentId = String(req.query.tournament || "world").toLowerCase();
   const cfg = TOURNAMENTS[tournamentId];
   if (!cfg) return json(res, 400, { error: `unknown tournament '${tournamentId}'` });
 
-  const season = Number(req.query.season) || cfg.season;
-  const key = process.env.APISPORTS_KEY;
-
-  if (!key) {
-    return json(res, 200, { source: "fallback", reason: "no_api_key", tournament: tournamentId });
+  const token = process.env.FOOTBALL_DATA_TOKEN;
+  if (!token) {
+    return json(res, 200, { source: "fallback", reason: "no_token", tournament: tournamentId });
   }
 
   try {
-    const url = `${API_BASE}/standings?league=${cfg.league}&season=${season}`;
-    const upstream = await fetch(url, { headers: { "x-apisports-key": key } });
+    const url = `${API_BASE}/competitions/${cfg.code}/standings`;
+    const upstream = await fetch(url, { headers: { "X-Auth-Token": token } });
 
     if (!upstream.ok) {
+      // 403 usually means the competition/season isn't on your plan or window.
       return json(res, 200, { source: "fallback", reason: `upstream_${upstream.status}`, tournament: tournamentId });
     }
 
     const data = await upstream.json();
 
-    // API-Football surfaces quota / plan problems in an `errors` object.
-    if (data.errors && (Array.isArray(data.errors) ? data.errors.length : Object.keys(data.errors).length)) {
-      return json(res, 200, { source: "fallback", reason: "api_error", detail: data.errors, tournament: tournamentId });
-    }
+    // Flatten the TOTAL table across every group (WC has 12 groups; PL has one).
+    const rows = (data.standings || [])
+      .filter((s) => (s.type || "TOTAL") === "TOTAL")
+      .flatMap((s) => (s.table || []).map((r) => ({ row: r, group: s.group || s.stage || null })));
 
-    const groups = data?.response?.[0]?.league?.standings || [];
-    const rows = groups.flat();
     if (!rows.length) {
-      return json(res, 200, { source: "fallback", reason: "no_standings", tournament: tournamentId, season });
+      return json(res, 200, { source: "fallback", reason: "no_standings", tournament: tournamentId });
     }
 
     const teams = rows
-      .map((row) => buildTeam(row))
+      .map(({ row, group }) => buildTeam(row, group))
       .filter(Boolean)
-      // De-dupe (some feeds repeat teams across sub-tables) and rank by strength.
       .filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i)
       .sort((a, b) => b.rating - a.rating);
 
@@ -74,7 +70,7 @@ module.exports = async (req, res) => {
       source: "live",
       tournament: tournamentId,
       label: cfg.label,
-      season,
+      season: data?.season?.startDate ? data.season.startDate.slice(0, 4) : null,
       updated: new Date().toISOString(),
       teams,
     });
@@ -83,18 +79,16 @@ module.exports = async (req, res) => {
   }
 };
 
-// Turn one standings row into a predictor-ready team object.
-function buildTeam(row) {
+// Turn one football-data.org standings row into a predictor-ready team object.
+function buildTeam(row, group) {
   const team = row.team || {};
   if (!team.id || !team.name) return null;
 
-  const all = row.all || {};
-  const goals = all.goals || {};
-  const played = all.played || 0;
-  const gf = goals.for || 0;
-  const ga = goals.against || 0;
+  const played = row.playedGames || 0;
+  const gf = row.goalsFor || 0;
+  const ga = row.goalsAgainst || 0;
   const pts = row.points || 0;
-  const gd = row.goalsDiff != null ? row.goalsDiff : gf - ga;
+  const gd = row.goalDifference != null ? row.goalDifference : gf - ga;
 
   const ppg = played ? pts / played : 0;
   const gfpg = played ? gf / played : 0;
@@ -113,33 +107,39 @@ function buildTeam(row) {
 
   return {
     id: "t" + team.id,
-    name: team.name,
-    short: meta.short,
+    name: team.shortName || team.name,
+    short: team.tla || meta.short, // football-data.org gives a real 3-letter code
     colors: meta.colors,
-    logo: team.logo || null,
+    logo: team.crest || null,
     rating, attack, defense, form,
     pedigree: meta.pedigree,
     titles: meta.titles,
-    // Live context shown in the UI so the numbers are traceable to real results.
+    // Live context so the numbers trace back to real results.
     live: {
       played,
-      record: `${all.win || 0}W-${all.draw || 0}D-${all.lose || 0}L`,
+      record: `${row.won || 0}W-${row.draw || 0}D-${row.lost || 0}L`,
       goalsFor: gf,
       goalsAgainst: ga,
-      form: row.form || "",
-      rank: row.rank || null,
-      group: row.group || null,
+      form: normalizeForm(row.form),
+      rank: row.position || null,
+      group,
     },
   };
 }
 
-// "WWDLW" -> average points ratio in [0,1].
+// football-data.org form looks like "W,W,D,L,W"; API-style is "WWDLW".
 function parseForm(form) {
   if (!form) return null;
   const map = { W: 1, D: 0.5, L: 0 };
-  const chars = [...String(form)].filter((c) => map[c] !== undefined);
+  const chars = [...String(form).toUpperCase()].filter((c) => map[c] !== undefined);
   if (!chars.length) return null;
   return chars.reduce((s, c) => s + map[c], 0) / chars.length;
+}
+
+// Return a clean "WWDLW" string (last 5) for display.
+function normalizeForm(form) {
+  if (!form) return "";
+  return [...String(form).toUpperCase()].filter((c) => "WDL".includes(c)).slice(-5).join("");
 }
 
 function clampRound(x, lo, hi) {

@@ -14,13 +14,16 @@
 
   <header class="app-header">
     <div class="brand">
-      <span class="brand-badge">⚽</span>
+      <span class="brand-badge" data-icon="ball"></span>
       <div>
         <h1>Match Oracle</h1>
         <p class="brand-sub">Premier League &amp; World Cup match predictor</p>
       </div>
     </div>
-    <button id="resetBtn" class="ghost-btn" hidden>↺ Start over</button>
+    <div class="header-actions">
+      <button id="themeToggle" class="icon-btn" aria-label="Toggle light/dark theme" title="Toggle theme"></button>
+      <button id="resetBtn" class="ghost-btn with-icon" hidden><span data-icon="refresh"></span> Start over</button>
+    </div>
   </header>
 
   <!-- Progress stepper -->
@@ -66,7 +69,11 @@
       </div>
 
       <div class="team-picker">
-        <input type="text" id="teamSearch" class="search-input" placeholder="🔍 Search teams…" autocomplete="off" />
+        <div class="search-wrap">
+          <span class="search-icon" data-icon="search"></span>
+          <input type="text" id="teamSearch" class="search-input" placeholder="Search teams…" autocomplete="off" />
+          <button id="surpriseBtn" class="surprise-btn with-icon" title="Random matchup"><span data-icon="dice"></span> Surprise me</button>
+        </div>
         <div class="team-list" id="teamList"></div>
       </div>
 
@@ -85,7 +92,7 @@
       <div class="venue-grid" id="venueGrid"></div>
       <div class="screen-actions">
         <button class="ghost-btn" data-goto="2">← Back</button>
-        <button class="primary-btn" id="runPrediction">Predict result ⚡</button>
+        <button class="primary-btn with-icon" id="runPrediction"><span data-icon="lightning"></span> Predict result</button>
       </div>
     </section>
 
@@ -93,8 +100,8 @@
     <section class="screen" id="screen-4">
       <div id="resultContainer"></div>
       <div class="screen-actions center">
-        <button class="ghost-btn" data-goto="2">↺ New matchup</button>
-        <button class="primary-btn" id="rematchBtn">Swap &amp; re-run ⇄</button>
+        <button class="ghost-btn with-icon" data-goto="2"><span data-icon="refresh"></span> New matchup</button>
+        <button class="primary-btn with-icon" id="rematchBtn"><span data-icon="swap"></span> Swap &amp; re-run</button>
       </div>
     </section>
 
@@ -105,6 +112,7 @@
   </footer>
 
   <script src="js/data.js"></script>
+  <script src="js/icons.js"></script>
   <script src="js/predictor.js"></script>
   <script src="js/app.js"></script>
 </body>

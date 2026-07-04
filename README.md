@@ -17,10 +17,14 @@ allow direct browser calls (no CORS). So the app uses a tiny **serverless
 function** that runs on Vercel:
 
 ```
-browser  →  /api/teams  (serverless, holds the secret key)  →  API-Football
+browser  →  /api/teams  (serverless, holds the secret key)  →  football-data.org
                     ↓
         live standings → derived ratings → JSON → the predictor
 ```
+
+Data comes from **[football-data.org](https://www.football-data.org/)**, whose
+**free tier covers both the World Cup and the Premier League** — no paid plan
+needed.
 
 - `attack` ← goals scored per game
 - `defense` ← goals conceded per game (inverted)
@@ -33,21 +37,24 @@ sample ratings** and clearly labels them, so it never breaks.
 
 ## Deploy to Vercel
 
-1. **Get a free API key** from [API-Football](https://www.api-football.com/)
-   (API‑SPORTS). The free tier is enough for a personal app.
+1. **Get a free token** at
+   [football-data.org/client/register](https://www.football-data.org/client/register).
+   The free tier covers the World Cup and Premier League.
 2. **Import this repo** into [Vercel](https://vercel.com/new) (New Project → pick
    the repo → Deploy). No build settings needed — it's static files + one
    function.
-3. **Add the key**: Project → *Settings → Environment Variables* →
-   `APISPORTS_KEY = your_key` → redeploy.
+3. **Add the token**: Project → *Settings → Environment Variables* →
+   `FOOTBALL_DATA_TOKEN = your_token`, then **redeploy** (env vars only apply to
+   deployments created *after* you add them).
 4. Open the deployment URL. You should see a green **LIVE** badge on the team
-   picker. If you see an amber *Sample ratings* badge, the key isn't set yet.
+   picker. If you see an amber *Sample ratings* badge, the token isn't set yet —
+   check the name and that you redeployed.
 
 ### Local development
 
 ```bash
 npm i -g vercel      # once
-cp .env.example .env # then paste your APISPORTS_KEY into .env
+cp .env.example .env # then paste your FOOTBALL_DATA_TOKEN into .env
 vercel dev           # serves the site + /api/teams at http://localhost:3000
 ```
 
@@ -90,18 +97,16 @@ vercel.json         # Vercel config
 
 ## Configuring
 
-- **API key** → Vercel env var `APISPORTS_KEY` (or `.env` locally)
-- **Which season the standings read** → `TOURNAMENTS` in `api/teams.js`
-  (or pass `?season=YYYY`). World Cup defaults to league `1` / season `2026`;
-  Premier League to league `39`.
+- **API token** → Vercel env var `FOOTBALL_DATA_TOKEN` (or `.env` locally)
+- **Competitions** → `TOURNAMENTS` in `api/teams.js` (World Cup = `WC`,
+  Premier League = `PL`); football-data.org serves the current season for each.
 - **Model weights** → the `W` object in `js/predictor.js`
 - **Restyle** → CSS custom properties in `:root` (`css/styles.css`)
 
 ---
 
-> **Note:** the live‑fetch path is wired for API‑Football but was built in a
-> sandbox without outbound network access, so it hasn't been run against the
+> **Note:** the live‑fetch path is wired for football-data.org but was built in
+> a sandbox without outbound network access, so it hasn't been run against the
 > real API. The data shape and derivation are unit‑tested against
-> API‑Football's documented `/standings` response; verify against your key on
-> first deploy and tweak the season/league in `api/teams.js` if the defaults
-> have drifted.
+> football-data.org's documented v4 `/standings` response; verify against your
+> token on first deploy.

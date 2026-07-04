@@ -24,6 +24,32 @@
     return `<div class="team-crest ${cls}" style="background:linear-gradient(135deg,${c1},${c2})">${team.short}</div>`;
   }
 
+  // Relative luminance (0..1) of a colour; hex only, else assume mid-tone.
+  function lum(color) {
+    if (typeof color === "string" && color[0] === "#") {
+      let h = color.slice(1);
+      if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+      const r = parseInt(h.slice(0, 2), 16) / 255;
+      const g = parseInt(h.slice(2, 4), 16) / 255;
+      const b = parseInt(h.slice(4, 6), 16) / 255;
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    }
+    return 0.5;
+  }
+
+  // Pick the team brand colour that best contrasts with the current theme's
+  // card background — so white-kit sides (England) and dark-kit sides (USA)
+  // stay visible in both light and dark mode.
+  function displayColor(team) {
+    const light = document.documentElement.getAttribute("data-theme") === "light";
+    const bg = light ? 0.96 : 0.09;
+    const [c1, c2] = team.colors;
+    const contrast = (c) => Math.abs(lum(c) - bg);
+    let pick = contrast(c1) >= 0.22 ? c1 : (contrast(c2) > contrast(c1) ? c2 : c1);
+    if (contrast(pick) < 0.15) pick = light ? "#0ea472" : "#34d399";
+    return pick;
+  }
+
   function goto(step) {
     state.step = step;
     $$(".screen").forEach((s) => s.classList.remove("active"));
@@ -48,7 +74,7 @@
       .map(
         (d) => `
       <div class="tournament-card" data-ds="${d.id}">
-        <div class="t-icon">${d.icon}</div>
+        <div class="t-illus">${ILLUSTRATIONS[d.id] || ""}</div>
         <h3>${d.label}</h3>
         <p>${d.tagline}</p>
         <div class="t-count">${d.teams.length} teams available →</div>
@@ -125,14 +151,15 @@
       badge.innerHTML = `<span class="dot-live"></span> LIVE · standings updated ${timeAgo(state.updated)}`;
     } else {
       badge.className = "data-badge sample";
-      badge.innerHTML = `⚠︎ Sample ratings (${friendlyReason(state.reason)}) — deploy with an API key for live data`;
+      badge.innerHTML = `${icon("warning")} Sample ratings (${friendlyReason(state.reason)}) — deploy with a token for live data`;
     }
   }
 
   function friendlyReason(reason) {
     switch (reason) {
       case "unreachable": return "no live endpoint";
-      case "no_api_key": return "no API key set";
+      case "no_token":
+      case "no_api_key": return "no API token set";
       case "no_live_data":
       case "no_standings": return "no live standings yet";
       default: return "live data unavailable";
@@ -219,15 +246,15 @@
   function renderVenue() {
     const A = state.teamA, B = state.teamB;
     const opts = [
-      { id: "home", icon: "🏟️", title: `${A.name} home`, sub: `Advantage ${A.short}` },
-      { id: "neutral", icon: "⚖️", title: "Neutral ground", sub: "No home edge" },
-      { id: "away", icon: "🏟️", title: `${B.name} home`, sub: `Advantage ${B.short}` },
+      { id: "home", icon: "stadium", title: `${A.name} home`, sub: `Advantage ${A.short}` },
+      { id: "neutral", icon: "scales", title: "Neutral ground", sub: "No home edge" },
+      { id: "away", icon: "plane", title: `${B.name} home`, sub: `Advantage ${B.short}` },
     ];
     $("#venueGrid").innerHTML = opts
       .map(
         (o) => `
       <div class="venue-card ${state.venue === o.id ? "selected" : ""}" data-venue="${o.id}">
-        <div class="v-icon">${o.icon}</div>
+        <div class="v-icon">${icon(o.icon)}</div>
         <h4>${o.title}</h4>
         <p>${o.sub}</p>
       </div>`
@@ -244,6 +271,7 @@
   // ---- STEP 4: results -------------------------------------------------
   function runPrediction() {
     const r = Predictor.predict(state.teamA, state.teamB, state.venue, state.dataset.homeAdvantage);
+    state.lastPrediction = r;
     renderResult(r);
     goto(4);
     // Animate bars after paint.
@@ -257,8 +285,8 @@
     const pB = 100 - pA - pD;
 
     const winnerLine = favourite
-      ? `<span class="winner-tag">🏆 ${favourite.name} favoured</span>`
-      : `<span class="winner-tag">⚖️ Too close to call</span>`;
+      ? `<span class="winner-tag">${icon("trophy")} ${favourite.name} favoured</span>`
+      : `<span class="winner-tag">${icon("scales")} Too close to call</span>`;
 
     const venueNote =
       state.venue === "home" ? `${teamA.name} at home` :
@@ -301,9 +329,9 @@
             <div class="prob-seg" data-w="${pB}" style="width:0;background:linear-gradient(135deg,${teamB.colors[0]},${teamB.colors[1]})">${pB}%</div>
           </div>
           <div class="prob-legend">
-            <span><i style="background:${teamA.colors[0]}"></i>${teamA.name}</span>
-            <span><i style="background:#475569"></i>Draw</span>
-            <span><i style="background:${teamB.colors[0]}"></i>${teamB.name}</span>
+            <span><i style="background:${displayColor(teamA)}"></i>${teamA.name}</span>
+            <span><i class="draw-swatch"></i>Draw</span>
+            <span><i style="background:${displayColor(teamB)}"></i>${teamB.name}</span>
           </div>
         </div>
       </div>
@@ -314,16 +342,30 @@
           ${factors.map(factorRow).join("")}
         </div>
         <div class="info-card">
+          <h4>${icon("radar")} Stat radar</h4>
+          ${radarChart(teamA, teamB)}
+        </div>
+        <div class="info-card">
           <h4>Most likely scorelines</h4>
           <div class="score-list">
             ${topScores.map((s) => scoreItem(s, topScores[0].p)).join("")}
           </div>
+        </div>
+        ${formCard(teamA, teamB)}
+        <div class="info-card sim-card" id="simCard">
+          <h4>${icon("play")} Match simulator</h4>
+          <p class="sim-intro">Run the model as a Monte-Carlo experiment — sampling goals from each side's xG — to see how often each result comes up.</p>
+          <button class="primary-btn with-icon sim-run" id="simRun"><span>${icon("play")}</span> Simulate 1,000 matches</button>
+          <div id="simResult"></div>
         </div>
         <div class="narrative">
           <h4>The Oracle says</h4>
           <p>${narrative(r, pA, pD, pB)}</p>
         </div>
       </div>`;
+
+    const simBtn = $("#simRun");
+    if (simBtn) simBtn.addEventListener("click", () => runSimulation(r));
   }
 
   function liveTag(team) {
@@ -333,9 +375,115 @@
 
   function resultSourceNote() {
     if (state.source === "live") {
-      return `<div class="source-note live">⚡ Based on live ${state.dataset.label} stats · updated ${timeAgo(state.updated)}</div>`;
+      return `<div class="source-note live">${icon("lightning")} Based on live ${state.dataset.label} stats · updated ${timeAgo(state.updated)}</div>`;
     }
-    return `<div class="source-note sample">Based on sample ratings — deploy with an API key for live tournament data</div>`;
+    return `<div class="source-note sample">Based on sample ratings — deploy with a token for live tournament data</div>`;
+  }
+
+  // ---- Radar chart (SVG) ----------------------------------------------
+  function radarChart(teamA, teamB) {
+    const axes = [
+      { key: "rating", label: "Rating" },
+      { key: "attack", label: "Attack" },
+      { key: "defense", label: "Defense" },
+      { key: "form", label: "Form" },
+      { key: "pedigree", label: "Pedigree" },
+    ];
+    const W = 300, H = 250, cx = 150, cy = 125, R = 78;
+    const n = axes.length;
+    const angle = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
+    const point = (i, r) => [cx + Math.cos(angle(i)) * r, cy + Math.sin(angle(i)) * r];
+
+    // Grid rings + spokes.
+    let grid = "";
+    [0.25, 0.5, 0.75, 1].forEach((f) => {
+      const pts = axes.map((_, i) => point(i, R * f).map((v) => v.toFixed(1)).join(",")).join(" ");
+      grid += `<polygon points="${pts}" class="radar-ring" />`;
+    });
+    axes.forEach((_, i) => {
+      const [x, y] = point(i, R);
+      grid += `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" class="radar-spoke" />`;
+    });
+
+    const poly = (team) => axes.map((a, i) => point(i, R * Math.max(0, Math.min(1, team[a.key] / 100))).map((v) => v.toFixed(1)).join(",")).join(" ");
+
+    const labels = axes
+      .map((a, i) => {
+        const [x, y] = point(i, R + 15);
+        const anchor = Math.abs(x - cx) < 6 ? "middle" : x > cx ? "start" : "end";
+        return `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="${anchor}" class="radar-label">${a.label}</text>`;
+      })
+      .join("");
+
+    const colA = displayColor(teamA), colB = displayColor(teamB);
+    return `
+      <svg viewBox="0 0 ${W} ${H}" class="radar-svg" role="img" aria-label="Stat comparison radar">
+        ${grid}
+        <polygon points="${poly(teamB)}" fill="${colB}" fill-opacity="0.20" stroke="${colB}" stroke-width="2" />
+        <polygon points="${poly(teamA)}" fill="${colA}" fill-opacity="0.28" stroke="${colA}" stroke-width="2" />
+        ${labels}
+      </svg>
+      <div class="radar-legend">
+        <span><i style="background:${colA}"></i>${teamA.short}</span>
+        <span><i style="background:${colB}"></i>${teamB.short}</span>
+      </div>`;
+  }
+
+  // ---- Live form strip -------------------------------------------------
+  function formCard(teamA, teamB) {
+    if (!teamA.live && !teamB.live) return "";
+    const row = (team) => {
+      const f = team.live && team.live.form ? team.live.form : "";
+      const pills = f
+        ? [...f].map((r) => `<span class="form-pill f-${r}">${r}</span>`).join("")
+        : `<span class="form-none">no recent matches</span>`;
+      return `
+        <div class="form-row">
+          <div class="form-team">${crest(team)}<span>${team.short}</span></div>
+          <div class="form-pills">${pills}</div>
+        </div>`;
+    };
+    return `
+      <div class="info-card">
+        <h4>Live form (recent → latest)</h4>
+        ${row(teamA)}${row(teamB)}
+      </div>`;
+  }
+
+  // ---- Monte-Carlo simulation -----------------------------------------
+  function runSimulation(r) {
+    const N = 1000;
+    const sim = Predictor.simulate(r.xg.a, r.xg.b, N);
+    const { teamA, teamB } = r;
+    const pct = (x) => Math.round((x / N) * 100);
+    const wa = pct(sim.winA), dr = pct(sim.draw), wb = 100 - pct(sim.winA) - pct(sim.draw);
+    const topScore = sim.topScore;
+
+    const box = $("#simResult");
+    box.innerHTML = `
+      <div class="sim-out">
+        <div class="sim-headline">
+          <span>${teamA.short} <strong>${sim.winA}</strong></span>
+          <span>Draw <strong>${sim.draw}</strong></span>
+          <span>${teamB.short} <strong>${sim.winB}</strong></span>
+        </div>
+        <div class="prob-bar sim-bar">
+          <div class="prob-seg" data-w="${wa}" style="width:0;background:linear-gradient(135deg,${teamA.colors[0]},${teamA.colors[1]})">${wa}%</div>
+          <div class="prob-seg draw" data-w="${dr}" style="width:0">${dr}%</div>
+          <div class="prob-seg" data-w="${wb}" style="width:0;background:linear-gradient(135deg,${teamB.colors[0]},${teamB.colors[1]})">${wb}%</div>
+        </div>
+        <div class="sim-stats">
+          <div><span class="sim-k">Avg goals</span><span class="sim-v">${sim.avgA.toFixed(2)} – ${sim.avgB.toFixed(2)}</span></div>
+          <div><span class="sim-k">Most common</span><span class="sim-v">${topScore.a}–${topScore.b} (${pct(topScore.count)}%)</span></div>
+          <div><span class="sim-k">Both teams scored</span><span class="sim-v">${pct(sim.btts)}%</span></div>
+        </div>
+        <button class="ghost-btn with-icon sim-again" id="simAgain"><span>${icon("refresh")}</span> Run again</button>
+      </div>`;
+    $("#simRun").style.display = "none";
+    $("#simAgain").addEventListener("click", () => runSimulation(r));
+    requestAnimationFrame(() => requestAnimationFrame(() =>
+      $$("#simResult .prob-seg").forEach((s) => (s.style.width = s.dataset.w + "%"))
+    ));
   }
 
   function factorRow(f) {
@@ -407,10 +555,56 @@
     $$(".factor-fill-a, .factor-fill-b, .sc-fill").forEach((el) => (el.style.width = el.dataset.w + "%"));
   }
 
+  // ---- icons + theme ---------------------------------------------------
+  function hydrateIcons() {
+    $$("[data-icon]").forEach((el) => {
+      if (!el.dataset.hydrated) {
+        el.innerHTML = icon(el.dataset.icon);
+        el.dataset.hydrated = "1";
+      }
+    });
+  }
+
+  const THEME_KEY = "oracle-theme";
+  function preferredTheme() {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "light" || saved === "dark") return saved;
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  }
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    const btn = $("#themeToggle");
+    // Show the icon of the mode you'd switch TO.
+    btn.innerHTML = icon(theme === "dark" ? "sun" : "moon");
+    btn.dataset.theme = theme;
+  }
+  function toggleTheme() {
+    const next = (document.documentElement.getAttribute("data-theme") === "dark") ? "light" : "dark";
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  }
+
+  // ---- Surprise me: random matchup ------------------------------------
+  function surpriseMe() {
+    const teams = state.dataset && state.dataset.teams;
+    if (!teams || teams.length < 2) return;
+    const i = Math.floor(Math.random() * teams.length);
+    let j = Math.floor(Math.random() * (teams.length - 1));
+    if (j >= i) j++;
+    state.teamA = teams[i];
+    state.teamB = teams[j];
+    renderSlots();
+    renderTeamList($("#teamSearch").value);
+  }
+
   // ---- wiring ----------------------------------------------------------
   function init() {
+    applyTheme(preferredTheme());
+    hydrateIcons();
     renderTournaments();
 
+    $("#themeToggle").addEventListener("click", toggleTheme);
+    $("#surpriseBtn").addEventListener("click", surpriseMe);
     $("#teamSearch").addEventListener("input", (e) => renderTeamList(e.target.value));
 
     $("#toVenue").addEventListener("click", () => {
