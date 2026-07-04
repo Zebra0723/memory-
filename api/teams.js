@@ -23,7 +23,7 @@ const API_BASE = "https://api.football-data.org/v4";
 // All competitions on football-data.org's free tier (code = their id).
 const TOURNAMENTS = {
   world:        { code: "WC",  label: "World Cup" },
-  euros:        { code: "EC",  label: "European Championship" },
+  euros:        { code: "EC",  label: "Euros" },
   champions:    { code: "CL",  label: "Champions League" },
   premier:      { code: "PL",  label: "Premier League" },
   laliga:       { code: "PD",  label: "La Liga" },

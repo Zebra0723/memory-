@@ -268,7 +268,7 @@ const BRASILEIRAO = [
 
 const DATASETS = {
   world:        { id: "world",        label: "World Cup",             tagline: "Nation vs nation on the biggest stage", kind: "nation", homeAdvantage: 4.0, teams: WORLD_CUP },
-  euros:        { id: "euros",        label: "European Championship", tagline: "Europe's finest national teams",         kind: "nation", homeAdvantage: 4.0, teams: EUROS },
+  euros:        { id: "euros",        label: "Euros",                 tagline: "Europe's finest national teams",         kind: "nation", homeAdvantage: 4.0, teams: EUROS },
   champions:    { id: "champions",    label: "Champions League",      tagline: "Europe's elite clubs collide",           kind: "club",   homeAdvantage: 4.5, teams: CHAMPIONS_LEAGUE },
   premier:      { id: "premier",      label: "Premier League",        tagline: "England's top flight — club vs club",    kind: "club",   homeAdvantage: 5.5, teams: PREMIER_LEAGUE },
   laliga:       { id: "laliga",       label: "La Liga",               tagline: "Spain's finest go head to head",         kind: "club",   homeAdvantage: 5.2, teams: LA_LIGA },

@@ -280,7 +280,7 @@ body {
 }
 
 /* Real club badge / national flag overlaid on the crest tile (live data) */
-.team-crest, .mini-crest, .fx-crest { position: relative; overflow: hidden; }
+.team-crest, .mini-crest, .fx-crest, .bkt-crest { position: relative; overflow: hidden; }
 .crest-tla { position: relative; z-index: 1; }
 .crest-img {
   position: absolute; inset: 0; width: 100%; height: 100%;
@@ -345,6 +345,41 @@ body {
 .fx-chip.ft { background: var(--card-2); color: var(--muted); border: 1px solid var(--border); }
 .fx-chip.live { background: rgba(52,211,153,0.15); color: var(--accent); }
 .fx-chip.off { background: rgba(248,113,113,0.14); color: var(--danger); }
+
+/* Knockout bracket */
+.bracket-scroll { overflow-x: auto; padding: 4px 2px 14px; }
+.bracket { position: relative; display: flex; gap: 40px; min-width: min-content; align-items: stretch; }
+.bracket-lines { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.bracket-lines path { fill: none; stroke: var(--border); stroke-width: 2; }
+.bkt-round { display: flex; flex-direction: column; min-width: 158px; }
+.bkt-round-head {
+  text-align: center; font-size: 11px; font-weight: 800; letter-spacing: .5px;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+}
+.bkt-round-body { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 12px; position: relative; z-index: 1; }
+.bkt-match {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  overflow: hidden; position: relative;
+}
+.bkt-match.clickable { cursor: pointer; transition: transform .12s, border-color .2s, box-shadow .2s; }
+.bkt-match.clickable:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: var(--shadow); }
+.bkt-team { display: flex; align-items: center; gap: 8px; padding: 7px 10px; }
+.bkt-team + .bkt-team { border-top: 1px solid var(--border); }
+.bkt-team:not(.won) { color: var(--muted); }
+.bkt-team.won .bkt-tla { font-weight: 800; color: var(--text); }
+.bkt-crest {
+  width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+  display: grid; place-items: center; font-family: "Bebas Neue", sans-serif;
+  font-size: 10px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+.bkt-tla { flex: 1; font-size: 13px; font-weight: 700; }
+.bkt-sc { font-family: "Bebas Neue", sans-serif; font-size: 16px; letter-spacing: 1px; }
+.bkt-pens {
+  position: absolute; top: 50%; right: 4px; transform: translateY(-50%);
+  font-size: 9px; font-weight: 800; color: var(--gold); background: var(--card-2);
+  padding: 1px 4px; border-radius: 4px;
+}
+.bkt-third { margin-top: 22px; max-width: 220px; }
 
 /* Actual result note */
 .actual-note {

@@ -5,7 +5,7 @@
 
 (() => {
   // Bump this on every deploy so you can confirm the live site is up to date.
-  const APP_VERSION = "v1.4.0";
+  const APP_VERSION = "v1.5.0";
 
   const state = {
     step: 1,
@@ -301,13 +301,16 @@
     $$("#modeTabs .mode-tab").forEach((t) => t.classList.toggle("active", t.dataset.mode === mode));
     $("#pickerPanel").hidden = mode !== "picker";
     $("#fixturesPanel").hidden = mode !== "fixtures";
+    $("#bracketPanel").hidden = mode !== "bracket";
     if (mode === "fixtures") renderFixtures();
+    if (mode === "bracket") renderBracket();
   }
 
   function updateFixturesTab() {
     const tab = $('#modeTabs .mode-tab[data-mode="fixtures"]');
     const n = (state.fixtures || []).length;
     tab.textContent = n ? `Fixtures (${n})` : "Fixtures";
+    $("#bracketTab").hidden = !state.hasKnockout;
   }
 
   function renderFixtures() {
@@ -359,6 +362,97 @@
       { colors: team ? team.colors : ["#3a4457", "#232b3a"], short: ref.tla, logo: ref.crest || (team && team.logo) },
       "fx-crest"
     );
+  }
+
+  // ---- Knockout bracket ------------------------------------------------
+  const BRACKET_ORDER = ["LAST_32", "LAST_16", "QUARTER_FINALS", "SEMI_FINALS", "FINAL"];
+  const BRACKET_LABELS = {
+    LAST_32: "Round of 32", LAST_16: "Round of 16", QUARTER_FINALS: "Quarter-finals",
+    SEMI_FINALS: "Semi-finals", FINAL: "Final",
+  };
+
+  function renderBracket() {
+    const panel = $("#bracketPanel");
+    const ko = (state.fixtures || []).filter((f) => f.knockout);
+    if (!ko.length) {
+      panel.innerHTML = `<div class="fx-empty">${icon("warning")} No knockout bracket yet — this competition is still in its group/league phase, or the knockout draw hasn't been made.</div>`;
+      return;
+    }
+    const byStage = {};
+    ko.forEach((f) => { (byStage[f.stage] = byStage[f.stage] || []).push(f); });
+    const rounds = BRACKET_ORDER
+      .filter((s) => byStage[s])
+      .map((s) => ({
+        label: BRACKET_LABELS[s] || s,
+        matches: byStage[s].slice().sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate)),
+      }));
+    const third = byStage["THIRD_PLACE"];
+
+    panel.innerHTML = `
+      <div class="bracket-scroll">
+        <div class="bracket">
+          <svg class="bracket-lines" aria-hidden="true"></svg>
+          ${rounds.map((r) => `
+            <div class="bkt-round">
+              <div class="bkt-round-head">${r.label}</div>
+              <div class="bkt-round-body">${r.matches.map(bracketMatch).join("")}</div>
+            </div>`).join("")}
+        </div>
+      </div>
+      ${third ? `<div class="bkt-third"><div class="bkt-round-head">Third-place play-off</div>${third.map(bracketMatch).join("")}</div>` : ""}`;
+
+    $$("#bracketPanel .bkt-match.clickable").forEach((el) =>
+      el.addEventListener("click", () => onFixtureClick(el.dataset.id))
+    );
+    requestAnimationFrame(() => requestAnimationFrame(drawBracketLines));
+  }
+
+  function bracketMatch(m) {
+    const wH = m.score && m.score.winner === "HOME_TEAM";
+    const wA = m.score && m.score.winner === "AWAY_TEAM";
+    const clickable = m.home.id && m.away.id && teamById(m.home.id) && teamById(m.away.id);
+    const line = (ref, won, sc) => {
+      const t = ref.id && teamById(ref.id);
+      const nm = ref.tla || (t && t.short) || "TBD";
+      const crest = badge({ colors: t ? t.colors : ["#3a4457", "#232b3a"], short: nm, logo: ref.crest || (t && t.logo) }, "bkt-crest");
+      return `<div class="bkt-team ${won ? "won" : ""}">${crest}<span class="bkt-tla">${nm}</span><span class="bkt-sc">${sc == null ? "" : sc}</span></div>`;
+    };
+    const pens = m.score && m.score.duration === "PENALTY_SHOOTOUT" ? `<span class="bkt-pens">pens</span>` : "";
+    return `<div class="bkt-match ${clickable ? "clickable" : ""}" data-id="${m.id}">
+      ${line(m.home, wH, m.score ? m.score.home : null)}
+      ${line(m.away, wA, m.score ? m.score.away : null)}
+      ${pens}
+    </div>`;
+  }
+
+  // Draw connector lines between each match and its next-round target.
+  function drawBracketLines() {
+    const bracket = $("#bracketPanel .bracket");
+    const svg = $("#bracketPanel .bracket-lines");
+    if (!bracket || !svg) return;
+    const W = bracket.scrollWidth, H = bracket.scrollHeight;
+    svg.setAttribute("width", W); svg.setAttribute("height", H);
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    const base = bracket.getBoundingClientRect();
+    const rel = (el) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left - base.left, right: r.right - base.left, mid: r.top - base.top + r.height / 2 };
+    };
+    const rounds = $$("#bracketPanel .bkt-round");
+    let d = "";
+    for (let r = 0; r < rounds.length - 1; r++) {
+      const cur = Array.from(rounds[r].querySelectorAll(".bkt-match"));
+      const nxt = Array.from(rounds[r + 1].querySelectorAll(".bkt-match"));
+      if (!nxt.length) continue;
+      cur.forEach((el, i) => {
+        const target = nxt[Math.floor((i * nxt.length) / cur.length)];
+        if (!target) return;
+        const a = rel(el), b = rel(target);
+        const midX = (a.right + b.left) / 2;
+        d += `<path d="M${a.right.toFixed(1)} ${a.mid.toFixed(1)} H${midX.toFixed(1)} V${b.mid.toFixed(1)} H${b.left.toFixed(1)}"/>`;
+      });
+    }
+    svg.innerHTML = d;
   }
 
   function fixtureRow(f) {
@@ -789,6 +883,11 @@
     loadEmblems();
 
     $("#themeToggle").addEventListener("click", toggleTheme);
+    let rt;
+    window.addEventListener("resize", () => {
+      clearTimeout(rt);
+      rt = setTimeout(() => { if (!$("#bracketPanel").hidden) drawBracketLines(); }, 150);
+    });
     $("#surpriseBtn").addEventListener("click", () => { clearFixtureContext(); surpriseMe(); });
     $("#teamSearch").addEventListener("input", (e) => renderTeamList(e.target.value));
 
