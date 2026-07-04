@@ -48,7 +48,6 @@ const KNOCKOUT = new Set(["LAST_32", "LAST_16", "QUARTER_FINALS", "SEMI_FINALS",
 
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Cache-Control", "s-maxage=1800, stale-while-revalidate=3600");
 
   const tournamentId = String(req.query.tournament || "world").toLowerCase();
   const cfg = TOURNAMENTS[tournamentId];
@@ -96,6 +95,9 @@ module.exports = async (req, res) => {
     const fixtures = buildFixtures(matches);
     const hasKnockout = fixtures.some((f) => f.knockout);
 
+    // Cache ONLY successful live responses (30 min). Fallbacks are never
+    // cached, so a transient failure (e.g. token not set yet) can't get stuck
+    // in the edge cache and mask a later-working token.
     return json(res, 200, {
       source: "live",
       tournament: tournamentId,
@@ -104,7 +106,7 @@ module.exports = async (req, res) => {
       hasKnockout,
       teams,
       fixtures,
-    });
+    }, "s-maxage=1800, stale-while-revalidate=3600");
   } catch (err) {
     return json(res, 200, { source: "fallback", reason: "exception", detail: String(err), tournament: tournamentId });
   }
@@ -213,7 +215,8 @@ function titleize(s) {
 
 function clampRound(x, lo, hi) { return Math.max(lo, Math.min(hi, Math.round(x))); }
 
-function json(res, status, body) {
+function json(res, status, body, cache) {
+  res.setHeader("Cache-Control", cache || "no-store"); // fallbacks never cached
   res.status(status).setHeader("Content-Type", "application/json");
   res.send(JSON.stringify(body));
 }

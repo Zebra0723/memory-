@@ -164,12 +164,17 @@
 
   function friendlyReason(reason) {
     switch (reason) {
-      case "unreachable": return "no live endpoint";
+      case "unreachable": return "no live endpoint — open the deployed site, not a local file";
       case "no_token":
-      case "no_api_key": return "no API token set";
+      case "no_api_key": return "no API token set on the server";
+      case "upstream_403": return "football-data.org rejected the token (403) — check it's activated";
+      case "upstream_429": return "rate-limited by the provider (429) — retry in a minute";
+      case "no_matches": return "provider has no match data for this competition";
+      case "no_results_yet": return "matches scheduled but none played yet";
+      case "exception": return "error reaching the data provider";
       case "no_live_data":
-      case "no_standings": return "no live standings yet";
-      default: return "live data unavailable";
+      case "no_standings": return "no live data yet";
+      default: return reason ? `live data unavailable (${reason})` : "live data unavailable";
     }
   }
 
