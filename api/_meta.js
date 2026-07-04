@@ -64,6 +64,9 @@ const META = {
   everton:             { short: "EVE", colors: ["#003399", "#FFFFFF"], pedigree: 74, titles: "9 titles" },
   brentford:           { short: "BRE", colors: ["#D20000", "#FBB800"], pedigree: 50, titles: "Est. 1889" },
   "nottingham forest": { short: "NFO", colors: ["#DD0000", "#FFFFFF"], pedigree: 72, titles: "2 European Cups" },
+  "leeds united":      { short: "LEE", colors: ["#FFFFFF", "#1D428A"], pedigree: 66, titles: "3 top-flight titles", aliases: ["leeds"] },
+  "burnley":           { short: "BUR", colors: ["#6C1D45", "#99D6EA"], pedigree: 58, titles: "2 top-flight titles", aliases: ["burnley fc"] },
+  "sunderland":        { short: "SUN", colors: ["#EB172B", "#FFFFFF"], pedigree: 56, titles: "6 top-flight titles", aliases: ["sunderland afc"] },
 
   // ---- European club competitions (La Liga / Bundesliga / Serie A / Ligue 1 / etc.) ----
   "real madrid":        { short: "RMA", colors: ["#FEBE10", "#00529F"], pedigree: 99, titles: "15× UCL", aliases: ["real madrid cf"] },

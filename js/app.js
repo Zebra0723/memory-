@@ -5,7 +5,7 @@
 
 (() => {
   // Bump this on every deploy so you can confirm the live site is up to date.
-  const APP_VERSION = "v1.6.0";
+  const APP_VERSION = "v1.7.0";
 
   const state = {
     step: 1,
