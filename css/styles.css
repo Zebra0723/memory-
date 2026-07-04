@@ -190,6 +190,14 @@ body {
 .tournament-card:hover::after { opacity: 1; }
 .tournament-card .t-illus { line-height: 0; }
 .tournament-card .t-illus svg { filter: drop-shadow(0 6px 14px rgba(0,0,0,0.35)); }
+/* Real competition emblem (shown once it loads, else the SVG stays) */
+.t-logo {
+  display: none; width: 58px; height: 58px; object-fit: contain;
+  background: #fff; border-radius: 13px; padding: 7px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.28);
+}
+.t-illus.logo-ok .t-illus-svg { display: none; }
+.t-illus.logo-ok .t-logo { display: block; }
 .tournament-card h3 { font-size: 22px; margin: 14px 0 6px; }
 .tournament-card p { color: var(--muted); font-size: 14px; }
 .tournament-card .t-count { margin-top: 16px; font-size: 12px; color: var(--accent); font-weight: 700; letter-spacing: .3px; }
@@ -499,6 +507,10 @@ body {
 /* Footer */
 .app-footer { max-width: 720px; margin: 0 auto; padding: 10px 20px 40px; text-align: center; }
 .app-footer p { color: var(--muted); font-size: 12px; }
+.app-version {
+  margin-top: 8px; font-weight: 700; letter-spacing: .5px;
+  color: var(--accent); font-variant-numeric: tabular-nums;
+}
 
 /* Winner tag / source-note icons */
 .winner-tag .ic { width: 15px; height: 15px; vertical-align: -0.15em; }

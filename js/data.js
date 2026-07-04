@@ -281,3 +281,16 @@ const DATASETS = {
   libertadores: { id: "libertadores", label: "Copa Libertadores",     tagline: "South America's continental crown",      kind: "club",   homeAdvantage: 6.5, teams: LIBERTADORES },
   brasileirao:  { id: "brasileirao",  label: "Brasileirão",           tagline: "Brazil's Série A",                       kind: "club",   homeAdvantage: 5.5, teams: BRASILEIRAO },
 };
+
+// Real competition emblems from football-data.org's public crest CDN.
+// Rendered on the tournament cards; fall back to the SVG illustration if the
+// image can't load.
+const COMPETITION_CODES = {
+  world: "WC", euros: "EC", champions: "CL", premier: "PL", laliga: "PD",
+  bundesliga: "BL1", seriea: "SA", ligue1: "FL1", primeira: "PPL",
+  eredivisie: "DED", championship: "ELC", libertadores: "CLI", brasileirao: "BSA",
+};
+Object.keys(DATASETS).forEach((k) => {
+  DATASETS[k].code = COMPETITION_CODES[k];
+  DATASETS[k].emblem = `https://crests.football-data.org/${COMPETITION_CODES[k]}.png`;
+});

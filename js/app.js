@@ -4,6 +4,9 @@
  */
 
 (() => {
+  // Bump this on every deploy so you can confirm the live site is up to date.
+  const APP_VERSION = "v1.3.0";
+
   const state = {
     step: 1,
     dataset: null,   // active dataset (live teams or bundled fallback)
@@ -86,7 +89,10 @@
       .map(
         (d) => `
       <div class="tournament-card" data-ds="${d.id}">
-        <div class="t-illus">${ILLUSTRATIONS[d.id] || (d.kind === "nation" ? ILLUSTRATIONS.world : ILLUSTRATIONS.generic)}</div>
+        <div class="t-illus">
+          <span class="t-illus-svg">${ILLUSTRATIONS[d.id] || (d.kind === "nation" ? ILLUSTRATIONS.world : ILLUSTRATIONS.generic)}</span>
+          ${d.emblem ? `<img class="t-logo" src="${d.emblem}" alt="${d.label} logo" onload="this.closest('.t-illus').classList.add('logo-ok')" onerror="this.remove()">` : ""}
+        </div>
         <h3>${d.label}</h3>
         <p>${d.tagline}</p>
         <div class="t-count">${d.teams.length}+ teams · predict →</div>
@@ -761,6 +767,7 @@
   function init() {
     applyTheme(preferredTheme());
     hydrateIcons();
+    $("#appVersion").textContent = APP_VERSION;
     renderTournaments();
 
     $("#themeToggle").addEventListener("click", toggleTheme);
